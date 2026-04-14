@@ -10,9 +10,11 @@ import {
   QuotePdfPrintTrigger,
 } from "@/features/quotes/components/quote-pdf-print-trigger";
 import {
+  COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL,
   buildDocumentFilename,
   formatCurrency,
   formatDate,
+  getCommercialDownPaymentAmount,
   roundCurrency,
 } from "@/features/quotes/calculations";
 import { SupabaseBanner } from "@/features/clients/components/supabase-banner";
@@ -40,7 +42,7 @@ const statusLabel = {
 
 const quoteTerms = [
   "Tiempo estimado de entrega sujeto a confirmacion de produccion y materiales.",
-  "Se requiere anticipo para iniciar produccion del pedido.",
+  `Se sugiere un anticipo comercial del ${COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL} para confirmar el pedido.`,
   "Es responsabilidad del cliente revisar tallas, nombres y numeros antes de autorizar.",
   "La liquidacion restante debe quedar cubierta antes de la entrega final.",
 ] as const;
@@ -116,6 +118,7 @@ export default async function QuotePdfPage({
     date: quote.created_at,
     documentType: "cotizacion",
   });
+  const suggestedDownPaymentAmount = getCommercialDownPaymentAmount(quote.total_amount);
   const autoPrint = resolvedSearchParams?.download === "1";
   const businessContacts: string[] = [];
 
@@ -348,11 +351,11 @@ export default async function QuotePdfPage({
                 </div>
                 <div className="rounded-2xl border border-[#D7E5FF] bg-white px-4 py-4">
                   <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#4B5563]">
-                    Anticipo sugerido
+                    Anticipo sugerido ({COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL})
                   </p>
                   <p className="mt-1 text-xl font-black text-[#0F172A]">
                     {formatCurrency(
-                      roundCurrency(quote.suggested_down_payment_amount),
+                      roundCurrency(suggestedDownPaymentAmount),
                       settings.currency_code,
                     )}
                   </p>

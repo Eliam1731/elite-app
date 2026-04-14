@@ -5,7 +5,10 @@ import {
   isOrderStatusCompatibilityError,
   normalizeOrderStatus,
 } from "@/features/orders/status";
-import { roundCurrency } from "@/features/quotes/calculations";
+import {
+  getProductionMinimumPaymentAmount,
+  roundCurrency,
+} from "@/features/quotes/calculations";
 import {
   getMissingPieceIndexes,
   getRowsForOrderItem,
@@ -21,7 +24,7 @@ import type {
 } from "@/types/database";
 
 type OrderProductionReadiness = {
-  order: Pick<OrderDetailRecord, "id" | "status" | "expected_down_payment_amount"> & {
+  order: Pick<OrderDetailRecord, "id" | "status" | "total_amount"> & {
     order_items: OrderItemWithProductRecord[];
   };
   hasDownPayment: boolean;
@@ -56,7 +59,7 @@ export async function getOrderProductionReadiness(
 
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id, status, expected_down_payment_amount, order_items(*, product:products(*))")
+    .select("id, status, total_amount, order_items(*, product:products(*))")
     .eq("id", orderId)
     .single();
 
@@ -76,9 +79,8 @@ export async function getOrderProductionReadiness(
   const totalPaid = roundCurrency(
     (payments ?? []).reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0),
   );
-  const hasDownPayment =
-    roundCurrency(order.expected_down_payment_amount) <= 0 ||
-    totalPaid >= roundCurrency(order.expected_down_payment_amount);
+  const requiredDownPayment = getProductionMinimumPaymentAmount(order.total_amount);
+  const hasDownPayment = requiredDownPayment <= 0 || totalPaid >= requiredDownPayment;
 
   const sizeTable = await getFreshSizeTableByOrderId(orderId);
   const allRows = sizeTable?.size_table_rows ?? [];

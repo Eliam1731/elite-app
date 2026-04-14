@@ -8,7 +8,12 @@ import {
   getOrderStatusWriteCandidates,
   isOrderStatusCompatibilityError,
 } from "@/features/orders/status";
-import { getQuoteSummary, roundCurrency } from "@/features/quotes/calculations";
+import {
+  COMMERCIAL_DOWN_PAYMENT_RATE,
+  getCommercialDownPaymentAmount,
+  getQuoteSummary,
+  roundCurrency,
+} from "@/features/quotes/calculations";
 import type { QuoteFormState } from "@/features/quotes/form-state";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getBusinessSettings } from "@/services/business-settings/queries";
@@ -147,7 +152,7 @@ export async function createQuoteAction(
   if (!settings) {
     return {
       message:
-        "Falta configurar business_settings. Agrega vat_rate y default_down_payment_rate para cotizar.",
+        "Falta configurar business_settings. Agrega vat_rate y prefijos para poder cotizar.",
     } satisfies QuoteFormState;
   }
 
@@ -155,7 +160,6 @@ export async function createQuoteAction(
     items: parsed.data.items,
     saleType: parsed.data.sale_type,
     vatRate: Number(settings.vat_rate),
-    downPaymentRate: Number(settings.default_down_payment_rate),
   });
 
   const productIds = [...new Set(parsed.data.items.map((item) => item.product_id))];
@@ -193,7 +197,7 @@ export async function createQuoteAction(
     subtotal_amount: roundCurrency(summary.subtotal),
     vat_amount: roundCurrency(summary.vatAmount),
     total_amount: roundCurrency(summary.total),
-    down_payment_rate: Number(settings.default_down_payment_rate),
+    down_payment_rate: COMMERCIAL_DOWN_PAYMENT_RATE,
     suggested_down_payment_amount: roundCurrency(
       summary.suggestedDownPaymentAmount,
     ),
@@ -365,8 +369,8 @@ export async function createOrderFromQuoteAction(quoteId: string) {
     subtotal_amount: quote.subtotal_amount,
     vat_amount: quote.vat_amount,
     total_amount: quote.total_amount,
-    down_payment_rate: quote.down_payment_rate,
-    expected_down_payment_amount: quote.suggested_down_payment_amount,
+    down_payment_rate: COMMERCIAL_DOWN_PAYMENT_RATE,
+    expected_down_payment_amount: getCommercialDownPaymentAmount(quote.total_amount),
     production_notes: quote.notes,
     due_date: null,
   };

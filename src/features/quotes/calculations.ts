@@ -2,6 +2,11 @@ import type { QuoteItemFormValue } from "@/features/quotes/form-state";
 
 type MoneyInput = number | string | null | undefined;
 
+export const COMMERCIAL_DOWN_PAYMENT_RATE = 0.5;
+export const COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL = "50%";
+export const PRODUCTION_MIN_PAYMENT_RATE = 0.3;
+export const PRODUCTION_MIN_PAYMENT_PERCENT_LABEL = "30%";
+
 function normalizeMoneyString(value: string) {
   return value
     .trim()
@@ -54,11 +59,18 @@ export function sumMoney(values: MoneyInput[]) {
   return centsToMoney(totalCents);
 }
 
+export function getCommercialDownPaymentAmount(totalAmount: MoneyInput) {
+  return roundCurrency(roundCurrency(totalAmount) * COMMERCIAL_DOWN_PAYMENT_RATE);
+}
+
+export function getProductionMinimumPaymentAmount(totalAmount: MoneyInput) {
+  return roundCurrency(roundCurrency(totalAmount) * PRODUCTION_MIN_PAYMENT_RATE);
+}
+
 export function getQuoteSummary(args: {
   items: QuoteItemFormValue[];
   saleType: "normal" | "factura";
   vatRate: number;
-  downPaymentRate: number;
 }) {
   const subtotal = centsToMoney(
     args.items.reduce((total, item) => {
@@ -70,7 +82,7 @@ export function getQuoteSummary(args: {
     args.saleType === "factura" ? roundCurrency(subtotal * args.vatRate) : 0;
 
   const total = roundCurrency(subtotal + vatAmount);
-  const suggestedDownPaymentAmount = roundCurrency(total * args.downPaymentRate);
+  const suggestedDownPaymentAmount = getCommercialDownPaymentAmount(total);
 
   return {
     subtotal,

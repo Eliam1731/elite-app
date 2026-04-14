@@ -20,7 +20,10 @@ import {
 } from "@/features/orders/status";
 import { OrderPaymentsSection } from "@/features/payments/components/order-payments-section";
 import { OrderSizesSection } from "@/features/sizes/components/order-sizes-section";
-import { formatCurrency } from "@/features/quotes/calculations";
+import {
+  PRODUCTION_MIN_PAYMENT_PERCENT_LABEL,
+  formatCurrency,
+} from "@/features/quotes/calculations";
 import { SettingsWarning } from "@/features/quotes/components/settings-warning";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 import { getBusinessSettings } from "@/services/business-settings/queries";
@@ -120,7 +123,7 @@ export default async function OrderDetailPage({
       ) : null}
       {resolvedSearchParams?.message === "status-needs-down-payment" ? (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          No puedes pasar a produccion sin cubrir el anticipo requerido.
+          No puedes pasar a produccion sin cubrir al menos el {PRODUCTION_MIN_PAYMENT_PERCENT_LABEL} del pedido.
         </section>
       ) : null}
       {resolvedSearchParams?.message === "status-needs-sizes" ? (
@@ -243,7 +246,9 @@ export default async function OrderDetailPage({
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--color-panel)] px-4 py-3">
-                <span className="text-[var(--color-muted)]">Anticipo esperado</span>
+                <span className="text-[var(--color-muted)]">
+                  Anticipo esperado
+                </span>
                 <span className="font-semibold text-[var(--color-ink)]">
                   {formatCurrency(
                     order.expected_down_payment_amount,

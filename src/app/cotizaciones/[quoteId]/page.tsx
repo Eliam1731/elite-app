@@ -9,7 +9,12 @@ import {
   rejectQuoteAction,
   sendQuoteAction,
 } from "@/features/quotes/actions";
-import { buildDocumentFilename, formatCurrency } from "@/features/quotes/calculations";
+import {
+  COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL,
+  buildDocumentFilename,
+  formatCurrency,
+  getCommercialDownPaymentAmount,
+} from "@/features/quotes/calculations";
 import { getQuoteWhatsAppLink } from "@/features/quotes/whatsapp";
 import { SupabaseBanner } from "@/features/clients/components/supabase-banner";
 import { SettingsWarning } from "@/features/quotes/components/settings-warning";
@@ -85,6 +90,7 @@ export default async function QuoteDetailPage({
     date: quote.created_at,
     documentType: "cotizacion",
   });
+  const suggestedDownPaymentAmount = getCommercialDownPaymentAmount(quote.total_amount);
   const whatsappHref = getQuoteWhatsAppLink(quote, settings.currency_code);
 
   return (
@@ -341,10 +347,12 @@ export default async function QuoteDetailPage({
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--color-panel)] px-4 py-3">
-                <span className="text-[var(--color-muted)]">Anticipo sugerido</span>
+                <span className="text-[var(--color-muted)]">
+                  Anticipo sugerido ({COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL})
+                </span>
                 <span className="font-semibold text-[var(--color-ink)]">
                   {formatCurrency(
-                    quote.suggested_down_payment_amount,
+                    suggestedDownPaymentAmount,
                     settings.currency_code,
                   )}
                 </span>

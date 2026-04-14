@@ -4,6 +4,7 @@ import {
   normalizeOrderStatus,
 } from "@/features/orders/status";
 import { updateOrderStatusAction } from "@/features/orders/actions";
+import { PRODUCTION_MIN_PAYMENT_PERCENT_LABEL } from "@/features/quotes/calculations";
 import type { OrderRecord } from "@/types/database";
 
 type OrderStatusActionsProps = {
@@ -20,7 +21,7 @@ export function OrderStatusActions({ order }: OrderStatusActionsProps) {
       </h2>
       <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
         Cambia el estado manualmente segun el avance real del pedido. Para pasar a
-        produccion se valida anticipo y tallas completas.
+        produccion se valida el anticipo minimo del {PRODUCTION_MIN_PAYMENT_PERCENT_LABEL} y las tallas completas.
       </p>
       <div className="mt-4 grid gap-3">
         {canonicalOrderStatuses.map((status) => {

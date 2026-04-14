@@ -1,7 +1,10 @@
 import { CreditCard, Landmark, NotebookPen } from "lucide-react";
 
 import { createPaymentAction } from "@/features/payments/actions";
-import { formatCurrency, formatDate } from "@/features/quotes/calculations";
+import {
+  formatCurrency,
+  formatDate,
+} from "@/features/quotes/calculations";
 import type { PaymentRecord } from "@/types/database";
 
 type OrderPaymentsSectionProps = {

@@ -157,6 +157,16 @@ export type PaymentRecord = {
   updated_at: string;
 };
 
+export type ShippingExpenseRecord = {
+  id: string;
+  order_id: string | null;
+  amount: number;
+  expense_date: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type SizeOptionRecord = {
   id: string;
   label: string;

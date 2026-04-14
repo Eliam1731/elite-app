@@ -3,6 +3,7 @@ import { FileText } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageIntro } from "@/components/shared/page-intro";
 import { SupabaseBanner } from "@/features/clients/components/supabase-banner";
+import { COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL } from "@/features/quotes/calculations";
 import { QuoteCard } from "@/features/quotes/components/quote-card";
 import { SettingsWarning } from "@/features/quotes/components/settings-warning";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
@@ -19,7 +20,7 @@ export default async function QuotesPage() {
       <PageIntro
         eyebrow="Cotizaciones"
         title="Cotizaciones activas"
-        description="Crea cotizaciones con multiples items, calculo automatico de IVA y anticipo sugerido."
+        description={`Crea cotizaciones con multiples items, calculo automatico de IVA y anticipo sugerido al ${COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL}.`}
         actionHref="/cotizaciones/nueva"
         actionLabel="Nueva"
       />
@@ -79,7 +80,7 @@ export default async function QuotesPage() {
       {configured && settings && quotes.length === 0 ? (
         <EmptyState
           title="Todavia no hay cotizaciones"
-          description="Empieza con una cotizacion nueva. El sistema calculara subtotal, IVA, total y anticipo sugerido."
+          description={`Empieza con una cotizacion nueva. El sistema calculara subtotal, IVA, total y anticipo sugerido al ${COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL}.`}
           actionHref="/cotizaciones/nueva"
           actionLabel="Crear cotizacion"
           icon={<FileText className="h-6 w-6" />}

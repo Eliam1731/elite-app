@@ -7,7 +7,12 @@ import { CirclePlus, LoaderCircle, Trash2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 
-import { formatCurrency, getLineSubtotal, getQuoteSummary } from "@/features/quotes/calculations";
+import {
+  COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL,
+  formatCurrency,
+  getLineSubtotal,
+  getQuoteSummary,
+} from "@/features/quotes/calculations";
 import { initialQuoteFormState, type QuoteFormState } from "@/features/quotes/form-state";
 import type {
   BusinessSettingsRecord,
@@ -134,9 +139,8 @@ export function QuoteForm({
         items: normalizedItems,
         saleType,
         vatRate: Number(settings.vat_rate),
-        downPaymentRate: Number(settings.default_down_payment_rate),
       }),
-    [normalizedItems, saleType, settings.default_down_payment_rate, settings.vat_rate],
+    [normalizedItems, saleType, settings.vat_rate],
   );
 
   useEffect(() => {
@@ -421,7 +425,9 @@ export function QuoteForm({
             </span>
           </div>
           <div className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--color-panel)] px-4 py-3">
-            <span className="text-[var(--color-muted)]">Anticipo sugerido</span>
+                <span className="text-[var(--color-muted)]">
+                  Anticipo sugerido ({COMMERCIAL_DOWN_PAYMENT_PERCENT_LABEL})
+                </span>
             <span className="font-semibold text-[var(--color-ink)]">
               {formatCurrency(
                 summary.suggestedDownPaymentAmount,
