@@ -147,6 +147,8 @@ export type OrderListRecord = OrderRecord & {
 export type PaymentRecord = {
   id: string;
   order_id: string;
+  client_id: string;
+  payment_type: "down_payment" | "partial" | "final";
   amount: number;
   payment_date: string;
   payment_method: string | null;
@@ -155,23 +157,10 @@ export type PaymentRecord = {
   updated_at: string;
 };
 
-export type OrderCostType =
-  | "materiales"
-  | "mano_de_obra"
-  | "impresion"
-  | "bordado"
-  | "envio"
-  | "extras"
-  | "otro";
-
-export type OrderCostRecord = {
+export type SizeOptionRecord = {
   id: string;
-  order_id: string;
-  cost_type: OrderCostType;
-  description: string;
-  amount: number;
-  cost_date: string;
-  notes: string | null;
+  label: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 };

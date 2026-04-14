@@ -54,7 +54,7 @@ export default async function EditProductPage({
         defaultValues={{
           name: product.name,
           base_price_amount: product.base_price_amount.toFixed(2),
-          is_active: product.is_active ? "true" : "false",
+          capture_mode: product.capture_mode,
           notes: product.notes ?? "",
         }}
       />

@@ -5,10 +5,8 @@ import {
   DollarSign,
   Gauge,
   Package2,
-  PiggyBank,
   Ruler,
   ShoppingBag,
-  TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
@@ -44,7 +42,7 @@ const modules = [
   {
     href: "/tallas",
     label: "Tallas",
-    description: "Captura operativa dentro de cada pedido.",
+    description: "Catalogo global y captura operativa por pedido.",
     icon: Ruler,
   },
   {
@@ -69,18 +67,8 @@ const summaryCards = [
   },
   {
     key: "collectedThisMonth",
-    label: "Cobrado del mes",
+    label: "Ingresos del mes",
     icon: Wallet,
-  },
-  {
-    key: "costsThisMonth",
-    label: "Costos del mes",
-    icon: PiggyBank,
-  },
-  {
-    key: "profitThisMonth",
-    label: "Utilidad del mes",
-    icon: TrendingUp,
   },
   {
     key: "pendingCollection",
@@ -128,7 +116,7 @@ export default async function DashboardPage() {
       <PageIntro
         eyebrow="Elite"
         title="Dashboard financiero"
-        description={`Resumen de ${summary.monthLabel} para revisar ventas, cobros, costos y utilidad desde el celular.`}
+        description={`Resumen de ${summary.monthLabel} para revisar ventas, ingresos y pendiente por cobrar desde el celular.`}
       />
 
       <section className="rounded-[1.75rem] border border-blue-400/30 bg-gradient-to-r from-blue-700 to-blue-500 p-5 text-white shadow-[0_22px_40px_rgba(29,78,216,0.32)] [&_svg]:text-white [&_svg]:stroke-white">
@@ -150,13 +138,6 @@ export default async function DashboardPage() {
           </div>
         </div>
       </section>
-
-      {!summary.costTableAvailable ? (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Los costos del mes apareceran aqui cuando la tabla `order_costs` exista en la
-          base de datos y se haya aplicado su migracion.
-        </section>
-      ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {summaryCards.map((card) => {
@@ -219,7 +200,7 @@ export default async function DashboardPage() {
 
       <EmptyState
         title="Operacion del mes a un toque"
-        description="Desde aqui puedes saltar a pedidos, pagos, costos y tallas para capturar informacion del mes sin perder el contexto financiero."
+        description="Desde aqui puedes saltar a pedidos, pagos y tallas para capturar informacion del mes sin perder el contexto financiero."
         actionHref="/pedidos"
         actionLabel="Abrir pedidos"
         icon={<ShoppingBag className="h-6 w-6" />}

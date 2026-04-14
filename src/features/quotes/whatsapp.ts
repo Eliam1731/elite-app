@@ -27,9 +27,9 @@ export function getQuoteWhatsAppLink(
 
   const message = [
     `Hola ${quote.clients?.name || ""}`.trim(),
-    `Te comparto tu cotizacion ${quote.folio} de Elite.`,
+    `le comparto Su cotizacion ${quote.folio} de Elite.`,
     `Total: ${formatCurrency(quote.total_amount, currencyCode)}.`,
-    "Si gustas, te envio el PDF y damos seguimiento por este medio.",
+    "Si gusta, le envio el PDF y damos seguimiento por este medio.",
   ].join("\n");
 
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;

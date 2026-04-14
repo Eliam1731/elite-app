@@ -6,11 +6,14 @@ import { z } from "zod";
 
 import {
   getCaptureModeForOrderItem,
+  getCaptureModeForSizeRow,
   getMissingPieceIndexes,
   SIZE_PENDING_VALUE,
 } from "@/features/sizes/product-config";
 import { maybePromoteOrderToProduction } from "@/features/orders/status-rules";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { isAllowedSizeSelection } from "@/features/sizes/options";
+import { getAllowedSizeOptionsForSelection } from "@/services/size-options/queries";
 import { getFreshSizeTableByOrderId } from "@/services/sizes/queries";
 
 const baseSizeRowSchema = z.object({
@@ -239,7 +242,12 @@ export async function updateSizeRowAction(
     redirect(getOrderTallasHref(orderId, "size-row-error"));
   }
 
-  if (existingRow.capture_mode === "simple") {
+  if (getCaptureModeForSizeRow(existingRow) === "simple") {
+    const allowedOptions = await getAllowedSizeOptionsForSelection(
+      "simple",
+      existingRow.size,
+    );
+
     const parsed = simpleSizeRowSchema.safeParse({
       size: getString(formData, "size"),
       number: getString(formData, "number"),
@@ -247,6 +255,10 @@ export async function updateSizeRowAction(
     });
 
     if (!parsed.success) {
+      redirect(getOrderTallasHref(orderId, "size-row-invalid", `editRow=${rowId}`));
+    }
+
+    if (!isAllowedSizeSelection(parsed.data.size, allowedOptions, existingRow.size)) {
       redirect(getOrderTallasHref(orderId, "size-row-invalid", `editRow=${rowId}`));
     }
 
@@ -273,6 +285,11 @@ export async function updateSizeRowAction(
       redirect(getOrderTallasHref(orderId, "size-row-error", `editRow=${rowId}`));
     }
   } else {
+    const allowedOptions = await getAllowedSizeOptionsForSelection(
+      "full",
+      existingRow.size,
+    );
+
     const parsed = fullSizeRowSchema.safeParse({
       size: getString(formData, "size"),
       number: getString(formData, "number"),
@@ -285,6 +302,10 @@ export async function updateSizeRowAction(
     });
 
     if (!parsed.success) {
+      redirect(getOrderTallasHref(orderId, "size-row-invalid", `editRow=${rowId}`));
+    }
+
+    if (!isAllowedSizeSelection(parsed.data.size, allowedOptions, existingRow.size)) {
       redirect(getOrderTallasHref(orderId, "size-row-invalid", `editRow=${rowId}`));
     }
 

@@ -1,7 +1,7 @@
 export type ProductFormValues = {
   name: string;
   base_price_amount: string;
-  is_active: "true" | "false";
+  capture_mode: "simple" | "full";
   notes?: string;
 };
 

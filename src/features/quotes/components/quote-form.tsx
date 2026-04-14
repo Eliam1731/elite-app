@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useActionState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { CirclePlus, LoaderCircle, Trash2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import Link from "next/link";
 
 import { formatCurrency, getLineSubtotal, getQuoteSummary } from "@/features/quotes/calculations";
 import { initialQuoteFormState, type QuoteFormState } from "@/features/quotes/form-state";
@@ -35,6 +36,10 @@ type QuoteFormProps = {
   clients: ClientRecord[];
   settings: BusinessSettingsRecord;
   products: ProductRecord[];
+  createdClient?: ClientRecord | null;
+  clientCreated?: boolean;
+  createdProduct?: ProductRecord | null;
+  productCreated?: boolean;
 };
 
 function SubmitButton() {
@@ -60,9 +65,20 @@ function FieldError({ message }: { message?: string[] }) {
   return <p className="mt-2 text-xs font-medium text-[var(--color-danger)]">{message[0]}</p>;
 }
 
-export function QuoteForm({ action, clients, settings, products }: QuoteFormProps) {
+export function QuoteForm({
+  action,
+  clients,
+  settings,
+  products,
+  createdClient,
+  clientCreated = false,
+  createdProduct,
+  productCreated = false,
+}: QuoteFormProps) {
   const [state, formAction] = useActionState(action, initialQuoteFormState);
   const formState = state ?? initialQuoteFormState;
+  const appliedCreatedClientRef = useRef(false);
+  const appliedCreatedProductRef = useRef(false);
 
   const { control, register, setValue } = useForm<QuoteFormClientValues>({
     defaultValues: {
@@ -123,6 +139,31 @@ export function QuoteForm({ action, clients, settings, products }: QuoteFormProp
     [normalizedItems, saleType, settings.default_down_payment_rate, settings.vat_rate],
   );
 
+  useEffect(() => {
+    if (!createdClient || appliedCreatedClientRef.current) {
+      return;
+    }
+
+    setValue("client_id", createdClient.id, { shouldDirty: true });
+    appliedCreatedClientRef.current = true;
+  }, [createdClient, setValue]);
+
+  useEffect(() => {
+    if (!createdProduct || appliedCreatedProductRef.current) {
+      return;
+    }
+
+    const targetIndex = normalizedItems.findIndex((item) => !item.product_id);
+    const index = targetIndex >= 0 ? targetIndex : 0;
+
+    setValue(`items.${index}.product_id`, createdProduct.id, { shouldDirty: true });
+    setValue(`items.${index}.description`, createdProduct.name, { shouldDirty: true });
+    setValue(`items.${index}.unit_price_amount`, createdProduct.base_price_amount, {
+      shouldDirty: true,
+    });
+    appliedCreatedProductRef.current = true;
+  }, [createdProduct, normalizedItems, setValue]);
+
   return (
     <form action={formAction} className="space-y-4">
       <input
@@ -134,9 +175,17 @@ export function QuoteForm({ action, clients, settings, products }: QuoteFormProp
 
       <section className="space-y-4 rounded-[2rem] border border-[var(--color-line)] bg-[var(--color-elevated)] p-5 shadow-[var(--shadow-soft)]">
         <div>
-          <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
-            Cliente
-          </label>
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="block text-sm font-semibold text-[var(--color-ink)]">
+              Cliente
+            </label>
+            <Link
+              href="/clientes/nuevo?returnTo=%2Fcotizaciones%2Fnueva"
+              className="inline-flex min-h-10 w-full cursor-pointer items-center justify-center rounded-full border border-[var(--color-brand)]/20 bg-[var(--color-brand)]/8 px-4 text-sm font-semibold text-[var(--color-brand)] transition hover:border-[var(--color-brand)]/35 hover:bg-[var(--color-brand)]/14 sm:min-h-9 sm:w-auto sm:px-3 sm:text-xs"
+            >
+              Nuevo cliente
+            </Link>
+          </div>
           <select
             {...register("client_id")}
             className="h-12 w-full rounded-2xl border border-[var(--color-line)] bg-[var(--color-input)] px-4 text-sm text-[var(--color-ink)] outline-none transition focus:border-[var(--color-brand)]"
@@ -150,6 +199,12 @@ export function QuoteForm({ action, clients, settings, products }: QuoteFormProp
           </select>
           <FieldError message={formState.fieldErrors?.client_id} />
         </div>
+
+        {clientCreated && createdClient ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            Se agrego el cliente <span className="font-semibold">{createdClient.name}</span> y ya quedo seleccionado.
+          </div>
+        ) : null}
 
         <div>
           <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
@@ -179,25 +234,39 @@ export function QuoteForm({ action, clients, settings, products }: QuoteFormProp
               Agrega los conceptos necesarios y el sistema calcula importes.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() =>
-              append({
-                product_id: "",
-                description: "",
-                quantity: 1,
-                unit_price_amount: 0,
-                specifications: "",
-              })
-            }
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--color-brand-soft),var(--color-brand))] px-4 text-sm font-semibold text-white [&_svg]:text-white [&_svg]:stroke-white"
-          >
-            <CirclePlus className="h-4 w-4" />
-            <span className="text-white">Agregar</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/productos/nuevo?returnTo=%2Fcotizaciones%2Fnueva"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-[var(--color-line)] bg-[var(--color-panel)] px-4 text-sm font-semibold text-[var(--color-ink)]"
+            >
+              Nuevo producto
+            </Link>
+            <button
+              type="button"
+              onClick={() =>
+                append({
+                  product_id: "",
+                  description: "",
+                  quantity: 1,
+                  unit_price_amount: 0,
+                  specifications: "",
+                })
+              }
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--color-brand-soft),var(--color-brand))] px-4 text-sm font-semibold text-white [&_svg]:text-white [&_svg]:stroke-white"
+            >
+              <CirclePlus className="h-4 w-4" />
+              <span className="text-white">Agregar</span>
+            </button>
+          </div>
         </div>
 
         <FieldError message={formState.fieldErrors?.items} />
+
+        {productCreated && createdProduct ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+            Se agrego el producto <span className="font-semibold">{createdProduct.name}</span> y ya esta disponible en la cotizacion.
+          </div>
+        ) : null}
 
         <div className="space-y-4">
           {fields.map((field, index) => {
@@ -229,9 +298,17 @@ export function QuoteForm({ action, clients, settings, products }: QuoteFormProp
 
                 <div className="space-y-3">
                   <div>
-                    <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
-                      Producto
-                    </label>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <label className="block text-sm font-semibold text-[var(--color-ink)]">
+                        Producto
+                      </label>
+                      <Link
+                        href="/productos/nuevo?returnTo=%2Fcotizaciones%2Fnueva"
+                        className="text-xs font-semibold text-[var(--color-brand)]"
+                      >
+                        Agregar producto
+                      </Link>
+                    </div>
                     <select
                       {...register(`items.${index}.product_id`, {
                         onChange: (event) => {

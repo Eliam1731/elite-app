@@ -9,7 +9,19 @@ import { getBusinessSettings } from "@/services/business-settings/queries";
 import { getClients } from "@/services/clients/queries";
 import { getActiveProducts } from "@/services/products/queries";
 
-export default async function NewQuotePage() {
+type NewQuotePageProps = {
+  searchParams?: Promise<{
+    createdClientId?: string;
+    clientCreated?: string;
+    createdProductId?: string;
+    productCreated?: string;
+  }>;
+};
+
+export default async function NewQuotePage({
+  searchParams,
+}: NewQuotePageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const configured = isSupabaseConfigured();
 
   if (!configured) {
@@ -31,6 +43,14 @@ export default async function NewQuotePage() {
     getClients(),
     getActiveProducts(),
   ]);
+  const createdClient =
+    resolvedSearchParams?.createdClientId
+      ? clients.find((client) => client.id === resolvedSearchParams.createdClientId) ?? null
+      : null;
+  const createdProduct =
+    resolvedSearchParams?.createdProductId
+      ? products.find((product) => product.id === resolvedSearchParams.createdProductId) ?? null
+      : null;
 
   return (
     <div className="space-y-6">
@@ -58,6 +78,10 @@ export default async function NewQuotePage() {
           clients={clients}
           settings={settings}
           products={products}
+          createdClient={createdClient}
+          clientCreated={resolvedSearchParams?.clientCreated === "1"}
+          createdProduct={createdProduct}
+          productCreated={resolvedSearchParams?.productCreated === "1"}
         />
       ) : null}
     </div>

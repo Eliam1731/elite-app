@@ -9,7 +9,6 @@ import { notFound } from "next/navigation";
 
 import { PageIntro } from "@/components/shared/page-intro";
 import { SupabaseBanner } from "@/features/clients/components/supabase-banner";
-import { OrderCostsSection } from "@/features/costs/components/order-costs-section";
 import { updateOrderDueDateAction } from "@/features/orders/actions";
 import { OrderDetailNav } from "@/features/orders/components/order-detail-nav";
 import { getTodayForDateInput } from "@/features/orders/due-date";
@@ -25,9 +24,9 @@ import { formatCurrency } from "@/features/quotes/calculations";
 import { SettingsWarning } from "@/features/quotes/components/settings-warning";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 import { getBusinessSettings } from "@/services/business-settings/queries";
-import { getOrderCostsByOrderId, getTotalOrderCosts } from "@/services/costs/queries";
 import { getOrderById } from "@/services/orders/queries";
 import { getPaymentsByOrderId, getTotalPaid } from "@/services/payments/queries";
+import { getActiveSizeOptions } from "@/services/size-options/queries";
 import { getSizeTableByOrderId } from "@/services/sizes/queries";
 
 type OrderDetailPageProps = {
@@ -80,16 +79,14 @@ export default async function OrderDetailPage({
     notFound();
   }
 
-  const [sizeTable, payments, orderCostsResult] = await Promise.all([
+  const [sizeTable, payments, sizeOptions] = await Promise.all([
     getSizeTableByOrderId(order.id),
     getPaymentsByOrderId(order.id),
-    getOrderCostsByOrderId(order.id),
+    getActiveSizeOptions(),
   ]);
 
   const totalPaid = getTotalPaid(payments);
-  const totalCosts = getTotalOrderCosts(orderCostsResult.costs);
   const pendingAmount = order.total_amount - totalPaid;
-  const estimatedProfit = order.total_amount - totalCosts;
   const updateDueDate = updateOrderDueDateAction.bind(null, order.id);
   const today = getTodayForDateInput();
   const minDueDate = today;
@@ -349,6 +346,7 @@ export default async function OrderDetailPage({
           <OrderSizesSection
             order={order}
             sizeTable={sizeTable}
+            sizeOptions={sizeOptions}
             editRowId={resolvedSearchParams?.editRow}
             message={resolvedSearchParams?.message}
           />
@@ -361,19 +359,6 @@ export default async function OrderDetailPage({
             pendingAmount={pendingAmount}
             payments={payments}
             currencyCode={settings.currency_code}
-            today={today}
-            message={resolvedSearchParams?.message}
-          />
-
-          <OrderCostsSection
-            orderId={order.id}
-            orderTotal={order.total_amount}
-            costs={orderCostsResult.costs}
-            totalCosts={totalCosts}
-            estimatedProfit={estimatedProfit}
-            currencyCode={settings.currency_code}
-            today={today}
-            available={orderCostsResult.available}
             message={resolvedSearchParams?.message}
           />
         </div>

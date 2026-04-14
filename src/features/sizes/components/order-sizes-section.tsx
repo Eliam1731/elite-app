@@ -13,8 +13,10 @@ import {
   generateSizeRowsForItemAction,
   updateSizeRowAction,
 } from "@/features/sizes/actions";
+import { getSizeSelectOptions } from "@/features/sizes/options";
 import {
   getCaptureModeForOrderItem,
+  getCaptureModeForSizeRow,
   getMissingPieceIndexes,
   getRowsForOrderItem,
   isPendingValue,
@@ -24,6 +26,7 @@ import {
 import type {
   OrderDetailRecord,
   OrderItemWithProductRecord,
+  SizeOptionRecord,
   SizeTableRecord,
   SizeTableRowRecord,
 } from "@/types/database";
@@ -31,6 +34,7 @@ import type {
 type OrderSizesSectionProps = {
   order: OrderDetailRecord;
   sizeTable: SizeTableRecord | null;
+  sizeOptions: SizeOptionRecord[];
   editRowId?: string;
   message?: string;
 };
@@ -61,12 +65,18 @@ function yesNoField(
 function SizeRowForm({
   orderId,
   row,
+  sizeOptions,
 }: {
   orderId: string;
   row: SizeTableRowRecord;
+  sizeOptions: SizeOptionRecord[];
 }) {
   const action = updateSizeRowAction.bind(null, orderId, row.id);
-  const isSimple = row.capture_mode === "simple";
+  const isSimple = getCaptureModeForSizeRow(row) === "simple";
+  const selectOptions = getSizeSelectOptions(
+    sizeOptions,
+    isPendingValue(row.size) ? null : row.size,
+  );
 
   return (
     <form action={action} className="space-y-3">
@@ -75,11 +85,18 @@ function SizeRowForm({
           <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
             Talla
           </label>
-          <input
+          <select
             name="size"
             defaultValue={isPendingValue(row.size) ? "" : row.size}
             className="h-12 w-full rounded-2xl border border-[var(--color-line)] bg-[var(--color-input)] px-4 text-sm text-[var(--color-ink)] outline-none"
-          />
+          >
+            <option value="">Selecciona una talla</option>
+            {selectOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
@@ -168,14 +185,17 @@ function SizeRowForm({
 function SizeRowCard({
   orderId,
   row,
+  sizeOptions,
   editing,
 }: {
   orderId: string;
   row: SizeTableRowRecord;
+  sizeOptions: SizeOptionRecord[];
   editing: boolean;
 }) {
   const deleteAction = deleteSizeRowAction.bind(null, orderId, row.id);
   const complete = isSizeRowComplete(row);
+  const captureMode = getCaptureModeForSizeRow(row);
 
   if (editing) {
     return (
@@ -184,7 +204,7 @@ function SizeRowCard({
           <PencilLine className="h-4 w-4 text-[var(--color-brand)]" />
           Editar pieza {row.piece_index ?? "-"}
         </div>
-        <SizeRowForm orderId={orderId} row={row} />
+        <SizeRowForm orderId={orderId} row={row} sizeOptions={sizeOptions} />
       </article>
     );
   }
@@ -232,7 +252,7 @@ function SizeRowCard({
         </div>
       </div>
 
-      {row.capture_mode === "full" ? (
+      {captureMode === "full" ? (
         <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-[var(--color-muted)] md:grid-cols-4">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--color-soft-muted)]">
@@ -286,12 +306,14 @@ function ProductCaptureCard({
   clientId,
   item,
   rows,
+  sizeOptions,
   editRowId,
 }: {
   orderId: string;
   clientId: string;
   item: OrderItemWithProductRecord;
   rows: SizeTableRowRecord[];
+  sizeOptions: SizeOptionRecord[];
   editRowId?: string;
 }) {
   const captureMode = getCaptureModeForOrderItem(item);
@@ -379,6 +401,7 @@ function ProductCaptureCard({
               key={row.id}
               orderId={orderId}
               row={row}
+              sizeOptions={sizeOptions}
               editing={editRowId === row.id}
             />
           ))}
@@ -395,6 +418,7 @@ function ProductCaptureCard({
 export function OrderSizesSection({
   order,
   sizeTable,
+  sizeOptions,
   editRowId,
   message,
 }: OrderSizesSectionProps) {
@@ -494,6 +518,7 @@ export function OrderSizesSection({
               clientId={order.client_id}
               item={item}
               rows={getRowsForOrderItem(item, allRows)}
+              sizeOptions={sizeOptions}
               editRowId={editRowId}
             />
           ))}

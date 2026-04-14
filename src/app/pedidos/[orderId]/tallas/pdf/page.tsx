@@ -14,7 +14,10 @@ import {
   formatDate,
 } from "@/features/quotes/calculations";
 import { SettingsWarning } from "@/features/quotes/components/settings-warning";
-import { isPendingValue } from "@/features/sizes/product-config";
+import {
+  getCaptureModeForSizeRow,
+  isPendingValue,
+} from "@/features/sizes/product-config";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 import { getBusinessSettings } from "@/services/business-settings/queries";
 import { getOrderById } from "@/services/orders/queries";
@@ -49,11 +52,13 @@ function buildSizeGroups(rows: SizeTableRowRecord[]) {
   const groups = new Map<string, ProductSizeGroup>();
 
   rows.forEach((row) => {
-    if (!row.capture_mode) {
+    const captureMode = getCaptureModeForSizeRow(row);
+
+    if (!captureMode) {
       return;
     }
 
-    const key = `${row.order_item_id ?? row.product_name ?? "general"}-${row.capture_mode}`;
+    const key = `${row.order_item_id ?? row.product_name ?? "general"}-${captureMode}`;
     const existing = groups.get(key);
 
     if (existing) {
@@ -64,7 +69,7 @@ function buildSizeGroups(rows: SizeTableRowRecord[]) {
     groups.set(key, {
       key,
       title: row.product_name || "Producto sin nombre",
-      captureMode: row.capture_mode,
+      captureMode,
       rows: [row],
     });
   });

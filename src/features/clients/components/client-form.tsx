@@ -14,6 +14,7 @@ type ClientFormProps = {
   ) => Promise<ClientFormState | void>;
   defaultValues?: ClientFormValues;
   submitLabel: string;
+  returnTo?: string;
 };
 
 function SubmitButton({ label }: { label: string }) {
@@ -41,12 +42,15 @@ export function ClientForm({
   action,
   defaultValues,
   submitLabel,
+  returnTo,
 }: ClientFormProps) {
   const [state, formAction] = useActionState(action, initialClientFormState);
   const formState = state ?? initialClientFormState;
 
   return (
     <form action={formAction} className="space-y-4">
+      {returnTo ? <input type="hidden" name="return_to" value={returnTo} readOnly /> : null}
+
       <div className="space-y-4 rounded-[2rem] border border-[var(--color-line)] bg-[var(--color-elevated)] p-5 shadow-[var(--shadow-soft)]">
         <div>
           <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">

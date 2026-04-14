@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import {
+  getOrderStatusWriteCandidates,
+  isOrderStatusCompatibilityError,
+} from "@/features/orders/status";
 import { getQuoteSummary, roundCurrency } from "@/features/quotes/calculations";
 import type { QuoteFormState } from "@/features/quotes/form-state";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -64,6 +68,20 @@ function buildOrderFolio(prefix: string) {
 function getString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function getQuoteActionHref(
+  quoteId: string,
+  message: string,
+  detail?: string,
+) {
+  const params = new URLSearchParams({ message });
+
+  if (detail) {
+    params.set("detail", detail.slice(0, 180));
+  }
+
+  return `/cotizaciones/${quoteId}?${params.toString()}`;
 }
 
 function parseItemsJson(formData: FormData) {
@@ -307,7 +325,7 @@ export async function createOrderFromQuoteAction(quoteId: string) {
   const settings = await getBusinessSettings();
 
   if (!settings) {
-    redirect(`/cotizaciones/${quoteId}?message=settings-missing`);
+    redirect(getQuoteActionHref(quoteId, "settings-missing"));
   }
 
   const { data: quote, error: quoteError } = await supabase
@@ -317,11 +335,15 @@ export async function createOrderFromQuoteAction(quoteId: string) {
     .maybeSingle();
 
   if (quoteError || !quote) {
-    redirect(`/cotizaciones/${quoteId}?message=quote-missing`);
+    console.error("Error loading quote for order creation", {
+      quoteId,
+      error: quoteError,
+    });
+    redirect(getQuoteActionHref(quoteId, "quote-missing", quoteError?.message));
   }
 
   if (quote.status !== "approved") {
-    redirect(`/cotizaciones/${quoteId}?message=not-approved`);
+    redirect(getQuoteActionHref(quoteId, "not-approved"));
   }
 
   const existingOrder = await supabase
@@ -335,28 +357,67 @@ export async function createOrderFromQuoteAction(quoteId: string) {
   }
 
   const orderFolio = buildOrderFolio(settings.order_prefix);
+  const orderBasePayload = {
+    folio: orderFolio,
+    quote_id: quote.id,
+    client_id: quote.client_id,
+    sale_type: quote.sale_type,
+    subtotal_amount: quote.subtotal_amount,
+    vat_amount: quote.vat_amount,
+    total_amount: quote.total_amount,
+    down_payment_rate: quote.down_payment_rate,
+    expected_down_payment_amount: quote.suggested_down_payment_amount,
+    production_notes: quote.notes,
+    due_date: null,
+  };
 
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      folio: orderFolio,
-      quote_id: quote.id,
-      client_id: quote.client_id,
-      sale_type: quote.sale_type,
-      status: "aprobado",
-      subtotal_amount: quote.subtotal_amount,
-      vat_amount: quote.vat_amount,
-      total_amount: quote.total_amount,
-      down_payment_rate: quote.down_payment_rate,
-      expected_down_payment_amount: quote.suggested_down_payment_amount,
-      production_notes: quote.notes,
-      due_date: null,
-    })
-    .select("id")
-    .single();
+  let order:
+    | {
+        id: string;
+      }
+    | null = null;
+  let orderInsertError: {
+    message?: string;
+    code?: string;
+    details?: string;
+    hint?: string;
+  } | null = null;
 
-  if (orderError || !order) {
-    redirect(`/cotizaciones/${quoteId}?message=order-error`);
+  for (const candidate of getOrderStatusWriteCandidates("aprobado")) {
+    const { data, error } = await supabase
+      .from("orders")
+      .insert({
+        ...orderBasePayload,
+        status: candidate,
+      })
+      .select("id")
+      .single();
+
+    if (!error && data) {
+      order = data;
+      break;
+    }
+
+    orderInsertError = {
+      message: error?.message,
+      code: error?.code,
+      details: error?.details,
+      hint: error?.hint,
+    };
+
+    if (!isOrderStatusCompatibilityError(error)) {
+      break;
+    }
+  }
+
+  if (!order) {
+    console.error("Error creating order from quote", {
+      quoteId,
+      quoteStatus: quote.status,
+      orderPayload: orderBasePayload,
+      error: orderInsertError,
+    });
+    redirect(getQuoteActionHref(quoteId, "order-error", orderInsertError?.message));
   }
 
   const itemsPayload =
@@ -390,7 +451,18 @@ export async function createOrderFromQuoteAction(quoteId: string) {
 
     if (itemsError) {
       await supabase.from("orders").delete().eq("id", order.id);
-      redirect(`/cotizaciones/${quoteId}?message=order-items-error`);
+      console.error("Error creating order_items from quote", {
+        quoteId,
+        orderId: order.id,
+        itemsPayload,
+        error: {
+          message: itemsError.message,
+          code: itemsError.code,
+          details: itemsError.details,
+          hint: itemsError.hint,
+        },
+      });
+      redirect(getQuoteActionHref(quoteId, "order-items-error", itemsError.message));
     }
   }
 

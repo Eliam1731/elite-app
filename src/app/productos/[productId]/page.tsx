@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { PageIntro } from "@/components/shared/page-intro";
 import { SupabaseBanner } from "@/features/clients/components/supabase-banner";
+import { toggleProductActiveAction } from "@/features/products/actions";
 import { formatCurrency } from "@/features/quotes/calculations";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 import { getBusinessSettings } from "@/services/business-settings/queries";
@@ -43,6 +44,12 @@ export default async function ProductDetailPage({
   }
 
   const currencyCode = settings?.currency_code ?? "MXN";
+  const toggleAction = toggleProductActiveAction.bind(
+    null,
+    product.id,
+    !product.is_active,
+    `/productos/${product.id}`,
+  );
 
   return (
     <div className="space-y-6">
@@ -118,7 +125,7 @@ export default async function ProductDetailPage({
         </article>
       </section>
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Link
           href={`/productos/${product.id}/editar`}
           className="inline-flex min-h-14 items-center justify-center gap-2 rounded-[1.4rem] bg-[linear-gradient(135deg,var(--color-brand-soft),var(--color-brand))] px-4 text-sm font-semibold text-white shadow-[0_14px_28px_var(--color-brand-shadow)] [&_svg]:text-white [&_svg]:stroke-white"
@@ -133,6 +140,20 @@ export default async function ProductDetailPage({
           <ClipboardList className="h-4 w-4" />
           Usar en cotizacion
         </Link>
+        <form action={toggleAction}>
+          <button
+            type="submit"
+            className={`inline-flex min-h-14 w-full items-center justify-center rounded-[1.4rem] px-4 text-sm font-semibold ${
+              product.is_active
+                ? "border border-amber-200 bg-amber-50 text-amber-900"
+                : "bg-[linear-gradient(135deg,var(--color-brand-soft),var(--color-brand))] text-white shadow-[0_14px_28px_var(--color-brand-shadow)]"
+            }`}
+          >
+            <span className={product.is_active ? "" : "text-white"}>
+              {product.is_active ? "Desactivar producto" : "Activar producto"}
+            </span>
+          </button>
+        </form>
       </section>
     </div>
   );

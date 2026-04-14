@@ -1,6 +1,10 @@
 import { revalidatePath } from "next/cache";
 
-import { normalizeOrderStatus } from "@/features/orders/status";
+import {
+  getOrderStatusWriteCandidates,
+  isOrderStatusCompatibilityError,
+  normalizeOrderStatus,
+} from "@/features/orders/status";
 import { roundCurrency } from "@/features/quotes/calculations";
 import {
   getMissingPieceIndexes,
@@ -11,7 +15,6 @@ import {
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getFreshSizeTableByOrderId } from "@/services/sizes/queries";
 import type {
-  CanonicalOrderStatus,
   OrderDetailRecord,
   OrderItemWithProductRecord,
   SizeTableRowRecord,
@@ -112,18 +115,24 @@ export async function maybePromoteOrderToProduction(orderId: string) {
     return false;
   }
 
-  const { error } = await supabase
-    .from("orders")
-    .update({
-      status: "en_produccion" satisfies CanonicalOrderStatus,
-    })
-    .eq("id", orderId);
+  for (const candidate of getOrderStatusWriteCandidates("en_produccion")) {
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: candidate,
+      })
+      .eq("id", orderId);
 
-  if (error) {
-    return false;
+    if (!error) {
+      revalidatePath("/pedidos");
+      revalidatePath(`/pedidos/${orderId}`);
+      return true;
+    }
+
+    if (!isOrderStatusCompatibilityError(error)) {
+      return false;
+    }
   }
 
-  revalidatePath("/pedidos");
-  revalidatePath(`/pedidos/${orderId}`);
-  return true;
+  return false;
 }

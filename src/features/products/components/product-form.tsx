@@ -17,6 +17,7 @@ type ProductFormProps = {
   ) => Promise<ProductFormState | void>;
   defaultValues?: ProductFormValues;
   submitLabel: string;
+  returnTo?: string;
 };
 
 function SubmitButton({ label }: { label: string }) {
@@ -44,12 +45,15 @@ export function ProductForm({
   action,
   defaultValues,
   submitLabel,
+  returnTo,
 }: ProductFormProps) {
   const [state, formAction] = useActionState(action, initialProductFormState);
   const formState = state ?? initialProductFormState;
 
   return (
     <form action={formAction} className="space-y-4">
+      {returnTo ? <input type="hidden" name="return_to" value={returnTo} readOnly /> : null}
+
       <div className="space-y-4 rounded-[2rem] border border-[var(--color-line)] bg-[var(--color-elevated)] p-5 shadow-[var(--shadow-soft)]">
         <div>
           <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
@@ -83,17 +87,17 @@ export function ProductForm({
 
         <div>
           <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
-            Estatus
+            Tipo de captura
           </label>
           <select
-            name="is_active"
-            defaultValue={defaultValues?.is_active ?? "true"}
+            name="capture_mode"
+            defaultValue={defaultValues?.capture_mode ?? "full"}
             className="h-12 w-full rounded-2xl border border-[var(--color-line)] bg-[var(--color-input)] px-4 text-sm text-[var(--color-ink)] outline-none transition focus:border-[var(--color-brand)] focus:bg-[var(--color-panel-strong)]"
           >
-            <option value="true">Activo</option>
-            <option value="false">Inactivo</option>
+            <option value="full">Completa</option>
+            <option value="simple">Simple</option>
           </select>
-          <FieldError message={formState.fieldErrors?.is_active} />
+          <FieldError message={formState.fieldErrors?.capture_mode} />
         </div>
 
         <div>

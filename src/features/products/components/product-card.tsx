@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { Package2 } from "lucide-react";
 
+import { toggleProductActiveAction } from "@/features/products/actions";
 import { formatCurrency } from "@/features/quotes/calculations";
 import type { ProductRecord } from "@/types/database";
+import Link from "next/link";
 
 type ProductCardProps = {
   product: ProductRecord;
@@ -13,11 +14,15 @@ export function ProductCard({
   product,
   currencyCode = "MXN",
 }: ProductCardProps) {
+  const toggleAction = toggleProductActiveAction.bind(
+    null,
+    product.id,
+    !product.is_active,
+    "/productos",
+  );
+
   return (
-    <Link
-      href={`/productos/${product.id}`}
-      className="block rounded-[1.75rem] border border-[var(--color-line)] bg-[var(--color-elevated)] p-4 shadow-[var(--shadow-soft)]"
-    >
+    <article className="rounded-[1.75rem] border border-[var(--color-line)] bg-[var(--color-elevated)] p-4 shadow-[var(--shadow-soft)]">
       <div className="flex items-start gap-3">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,var(--color-brand-soft),var(--color-brand))] text-white shadow-[0_14px_26px_var(--color-brand-shadow)] [&_svg]:text-white [&_svg]:stroke-white">
           <Package2 className="h-5 w-5" />
@@ -26,9 +31,12 @@ export function ProductCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-[var(--color-ink)]">
+              <Link
+                href={`/productos/${product.id}`}
+                className="block truncate text-sm font-semibold text-[var(--color-ink)]"
+              >
                 {product.name}
-              </p>
+              </Link>
               <p className="mt-1 text-xs text-[var(--color-muted)]">
                 Captura {product.capture_mode === "simple" ? "simple" : "completa"}
               </p>
@@ -66,8 +74,31 @@ export function ProductCard({
           <p className="mt-3 line-clamp-2 text-sm leading-6 text-[var(--color-muted)]">
             {product.notes || "Sin notas por ahora."}
           </p>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href={`/productos/${product.id}`}
+              className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-[var(--color-line)] bg-[var(--color-panel)] px-4 text-sm font-semibold text-[var(--color-ink)]"
+            >
+              Ver detalle
+            </Link>
+            <form action={toggleAction} className="flex-1">
+              <button
+                type="submit"
+                className={`inline-flex min-h-11 w-full items-center justify-center rounded-full px-4 text-sm font-semibold ${
+                  product.is_active
+                    ? "border border-amber-200 bg-amber-50 text-amber-900"
+                    : "bg-[linear-gradient(135deg,var(--color-brand-soft),var(--color-brand))] text-white shadow-[0_14px_28px_var(--color-brand-shadow)]"
+                }`}
+              >
+                <span className={product.is_active ? "" : "text-white"}>
+                  {product.is_active ? "Desactivar" : "Activar"}
+                </span>
+              </button>
+            </form>
+          </div>
         </div>
       </div>
-    </Link>
+    </article>
   );
 }

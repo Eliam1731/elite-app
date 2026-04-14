@@ -28,6 +28,26 @@ function getString(formData: FormData, key: string) {
   return typeof value === "string" ? value : "";
 }
 
+function getSafeReturnTo(formData: FormData) {
+  const returnTo = getString(formData, "return_to").trim();
+
+  if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//")) {
+    return null;
+  }
+
+  return returnTo;
+}
+
+function withCreatedClientParam(path: string, clientId: string) {
+  const [pathname, queryString] = path.split("?", 2);
+  const params = new URLSearchParams(queryString ?? "");
+  params.set("createdClientId", clientId);
+  params.set("clientCreated", "1");
+  const nextQuery = params.toString();
+
+  return nextQuery ? `${pathname}?${nextQuery}` : pathname;
+}
+
 function mapClientPayload(formData: FormData) {
   const parsed = clientSchema.safeParse({
     name: getString(formData, "name"),
@@ -65,6 +85,7 @@ export async function createClientAction(
   formData: FormData,
 ) {
   const parsed = mapClientPayload(formData);
+  const returnTo = getSafeReturnTo(formData);
 
   if (!parsed.success) {
     return {
@@ -95,7 +116,8 @@ export async function createClientAction(
   }
 
   revalidatePath("/clientes");
-  redirect(`/clientes/${data.id}`);
+  revalidatePath("/cotizaciones/nueva");
+  redirect(returnTo ? withCreatedClientParam(returnTo, data.id) : `/clientes/${data.id}`);
 }
 
 export async function updateClientAction(

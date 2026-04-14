@@ -39,6 +39,8 @@ export default async function ProductsPage() {
         title="Catalogo base"
         description="Edita nombre, precio base, estatus y notas sin tocar la base de datos manualmente."
         backHref="/dashboard"
+        actionHref="/productos/nuevo"
+        actionLabel="Nuevo"
       />
 
       {products.length > 0 ? (
@@ -56,6 +58,8 @@ export default async function ProductsPage() {
           title="Todavia no hay productos"
           description="Cuando el catalogo tenga registros, aqui podras administrarlos y mantener consistencia en cotizaciones y pedidos."
           icon={<Package2 className="h-6 w-6" />}
+          actionHref="/productos/nuevo"
+          actionLabel="Crear producto"
         />
       )}
     </div>

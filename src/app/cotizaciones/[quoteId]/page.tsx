@@ -20,7 +20,7 @@ import { getQuoteById } from "@/services/quotes/queries";
 
 type QuoteDetailPageProps = {
   params: Promise<{ quoteId: string }>;
-  searchParams?: Promise<{ message?: string }>;
+  searchParams?: Promise<{ message?: string; detail?: string }>;
 };
 
 const statusLabel = {
@@ -135,11 +135,26 @@ export default async function QuoteDetailPage({
       resolvedSearchParams?.message === "order-items-error" ? (
         <section className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
           No se pudo crear el pedido a partir de la cotizacion.
+          {resolvedSearchParams?.detail ? (
+            <p className="mt-2 text-xs leading-5 text-rose-800">
+              Detalle: {resolvedSearchParams.detail}
+            </p>
+          ) : null}
         </section>
       ) : null}
       {resolvedSearchParams?.message === "settings-missing" ? (
         <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Falta la configuracion del negocio para completar esta accion.
+        </section>
+      ) : null}
+      {resolvedSearchParams?.message === "quote-missing" ? (
+        <section className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+          No se pudo cargar la cotizacion para crear el pedido.
+          {resolvedSearchParams?.detail ? (
+            <p className="mt-2 text-xs leading-5 text-rose-800">
+              Detalle: {resolvedSearchParams.detail}
+            </p>
+          ) : null}
         </section>
       ) : null}
 

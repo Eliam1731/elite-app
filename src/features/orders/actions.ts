@@ -8,6 +8,8 @@ import { isDueDateTodayOrLater } from "@/features/orders/due-date";
 import { getOrderProductionReadiness } from "@/features/orders/status-rules";
 import {
   canonicalOrderStatuses,
+  getOrderStatusWriteCandidates,
+  isOrderStatusCompatibilityError,
   isCanonicalOrderStatus,
 } from "@/features/orders/status";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -18,18 +20,69 @@ const dueDateSchema = z.object({
   due_date: z.string().trim().optional(),
 });
 
+async function updateOrderStatusWithCompatibility(
+  orderId: string,
+  status: OrderStatus,
+) {
+  const supabase = createServerSupabaseClient();
+
+  if (!supabase) {
+    return {
+      success: false as const,
+      reason: "config" as const,
+    };
+  }
+
+  let lastError: {
+    message?: string;
+    code?: string;
+    details?: string;
+    hint?: string;
+  } | null = null;
+
+  for (const candidate of getOrderStatusWriteCandidates(status)) {
+    const { error } = await supabase
+      .from("orders")
+      .update({
+        status: candidate,
+      })
+      .eq("id", orderId);
+
+    if (!error) {
+      return { success: true as const };
+    }
+
+    lastError = {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    };
+
+    if (!isOrderStatusCompatibilityError(error)) {
+      break;
+    }
+  }
+
+  console.error("Error updating order status", {
+    orderId,
+    status,
+    error: lastError,
+  });
+
+  return {
+    success: false as const,
+    reason: "error" as const,
+    detail: lastError?.message,
+  };
+}
+
 export async function updateOrderStatusAction(
   orderId: string,
   status: OrderStatus,
 ) {
   if (!isCanonicalOrderStatus(status)) {
     redirect(`/pedidos/${orderId}?message=status-error`);
-  }
-
-  const supabase = createServerSupabaseClient();
-
-  if (!supabase) {
-    redirect(`/pedidos/${orderId}?message=config`);
   }
 
   if (status === "en_produccion") {
@@ -44,15 +97,17 @@ export async function updateOrderStatusAction(
     }
   }
 
-  const { error } = await supabase
-    .from("orders")
-    .update({
-      status,
-    })
-    .eq("id", orderId);
+  const result = await updateOrderStatusWithCompatibility(orderId, status);
 
-  if (error) {
-    redirect(`/pedidos/${orderId}?message=status-error`);
+  if (!result.success) {
+    if (result.reason === "config") {
+      redirect(`/pedidos/${orderId}?message=config`);
+    }
+
+    const detail = result.detail
+      ? `&detail=${encodeURIComponent(result.detail.slice(0, 180))}`
+      : "";
+    redirect(`/pedidos/${orderId}?message=status-error${detail}`);
   }
 
   revalidatePath("/pedidos");

@@ -6,10 +6,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 type MonthlyDashboardSummary = {
   salesThisMonth: number;
   collectedThisMonth: number;
-  costsThisMonth: number;
-  profitThisMonth: number;
   pendingCollection: number;
-  costTableAvailable: boolean;
   monthLabel: string;
 };
 
@@ -47,15 +44,6 @@ function sumByAmount<T>(items: T[], getAmount: (item: T) => number) {
   return sumMoney(items.map((item) => getAmount(item)));
 }
 
-function isMissingTableError(error: unknown) {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  const candidate = error as { code?: string };
-  return candidate.code === "PGRST205";
-}
-
 export const getMonthlyDashboardSummary = cache(
   async (): Promise<MonthlyDashboardSummary> => {
     const supabase = createServerSupabaseClient();
@@ -64,17 +52,14 @@ export const getMonthlyDashboardSummary = cache(
       return {
         salesThisMonth: 0,
         collectedThisMonth: 0,
-        costsThisMonth: 0,
-        profitThisMonth: 0,
         pendingCollection: 0,
-        costTableAvailable: false,
         monthLabel: getMonthBounds().monthLabel,
       };
     }
 
     const { monthStart, nextMonthStart, monthLabel } = getMonthBounds();
 
-    const [ordersResult, paymentsResult, costsResult] = await Promise.all([
+    const [ordersResult, paymentsResult] = await Promise.all([
       supabase
         .from("orders")
         .select("total_amount, created_at")
@@ -85,11 +70,6 @@ export const getMonthlyDashboardSummary = cache(
         .select("amount, payment_date")
         .gte("payment_date", monthStart)
         .lt("payment_date", nextMonthStart),
-      supabase
-        .from("order_costs")
-        .select("amount, cost_date")
-        .gte("cost_date", monthStart)
-        .lt("cost_date", nextMonthStart),
     ]);
 
     if (ordersResult.error) {
@@ -100,16 +80,6 @@ export const getMonthlyDashboardSummary = cache(
       throw new Error(paymentsResult.error?.message || "No se pudieron consultar los pagos.");
     }
 
-    let costTableAvailable = true;
-
-    if (costsResult.error && !isMissingTableError(costsResult.error)) {
-      throw new Error(costsResult.error?.message || "No se pudieron consultar los costos.");
-    }
-
-    if (costsResult.error && isMissingTableError(costsResult.error)) {
-      costTableAvailable = false;
-    }
-
     const salesThisMonth = sumByAmount(
       ordersResult.data ?? [],
       (order) => Number(order.total_amount ?? 0),
@@ -118,10 +88,6 @@ export const getMonthlyDashboardSummary = cache(
       paymentsResult.data ?? [],
       (payment) => Number(payment.amount ?? 0),
     );
-    const costsThisMonth = costTableAvailable
-      ? sumByAmount(costsResult.data ?? [], (cost) => Number(cost.amount ?? 0))
-      : 0;
-    const profitThisMonth = roundCurrency(salesThisMonth - costsThisMonth);
     const pendingCollection = roundCurrency(
       Math.max(salesThisMonth - collectedThisMonth, 0),
     );
@@ -129,10 +95,7 @@ export const getMonthlyDashboardSummary = cache(
     return {
       salesThisMonth,
       collectedThisMonth,
-      costsThisMonth,
-      profitThisMonth,
       pendingCollection,
-      costTableAvailable,
       monthLabel,
     };
   },

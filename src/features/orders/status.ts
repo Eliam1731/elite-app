@@ -1,6 +1,7 @@
 import { getTodayForDateInput } from "@/features/orders/due-date";
 import type {
   CanonicalOrderStatus,
+  LegacyOrderStatus,
   OrderRecord,
   OrderStatusRecord,
 } from "@/types/database";
@@ -26,6 +27,16 @@ const legacyToCanonicalStatus: Record<OrderStatusRecord, CanonicalOrderStatus> =
   ready: "listo",
   delivered: "entregado",
   cancelled: "cancelado",
+};
+
+const canonicalToLegacyStatusFallback: Partial<
+  Record<CanonicalOrderStatus, LegacyOrderStatus>
+> = {
+  aprobado: "new",
+  en_produccion: "in_production",
+  listo: "ready",
+  entregado: "delivered",
+  cancelado: "cancelled",
 };
 
 const orderStatusLabels: Record<CanonicalOrderStatus, string> = {
@@ -62,6 +73,31 @@ export function getOrderStatusClasses(status: OrderStatusRecord) {
 
 export function isCanonicalOrderStatus(value: string): value is CanonicalOrderStatus {
   return canonicalOrderStatuses.includes(value as CanonicalOrderStatus);
+}
+
+export function getOrderStatusWriteCandidates(status: CanonicalOrderStatus) {
+  const fallback = canonicalToLegacyStatusFallback[status];
+  return fallback ? [status, fallback] : [status];
+}
+
+export function isOrderStatusCompatibilityError(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as {
+    code?: string;
+    message?: string;
+    details?: string;
+  };
+
+  const combinedText = `${candidate.message ?? ""} ${candidate.details ?? ""}`.toLowerCase();
+
+  return (
+    candidate.code === "22P02" ||
+    candidate.code === "23514" ||
+    combinedText.includes("status")
+  );
 }
 
 export function isClosedOrderStatus(status: OrderStatusRecord) {

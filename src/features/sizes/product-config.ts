@@ -1,4 +1,5 @@
 import { PRODUCT_OPTIONS } from "@/features/products/catalog";
+import { getCaptureModeFromProductName } from "@/features/products/rules";
 import type {
   OrderItemRecord,
   OrderItemWithProductRecord,
@@ -7,10 +8,10 @@ import type {
 
 export const SIZE_PENDING_VALUE = "POR DEFINIR";
 
-export const SIMPLE_CAPTURE_PRODUCTS = ["Short"] as const;
+export const SIMPLE_CAPTURE_PRODUCTS = ["Short", "Licra", "Pants"] as const;
 
 export const FULL_CAPTURE_PRODUCTS = PRODUCT_OPTIONS.filter(
-  (product) => !SIMPLE_CAPTURE_PRODUCTS.includes(product as "Short"),
+  (product) => !SIMPLE_CAPTURE_PRODUCTS.includes(product as (typeof SIMPLE_CAPTURE_PRODUCTS)[number]),
 );
 
 export type CaptureMode = "full" | "simple";
@@ -43,16 +44,39 @@ export function getCaptureModeForProduct(productName: string): CaptureMode | nul
   return null;
 }
 
+export function getCaptureModeForSizeRow(
+  row: Pick<SizeTableRowRecord, "capture_mode" | "product_name">,
+): CaptureMode | null {
+  const inferredMode = row.product_name
+    ? getCaptureModeForProduct(row.product_name)
+    : null;
+
+  if (inferredMode === "simple") {
+    return "simple";
+  }
+
+  if (row.capture_mode) {
+    return row.capture_mode;
+  }
+
+  if (row.product_name) {
+    return getCaptureModeFromProductName(row.product_name);
+  }
+
+  return null;
+}
+
 export function getCaptureModeForOrderItem(
   orderItem: Pick<OrderItemRecord, "description"> & {
-    product?: { capture_mode: CaptureMode | null } | null;
+    product?: { capture_mode: CaptureMode | null; name?: string | null } | null;
   },
 ): CaptureMode | null {
   if (orderItem.product?.capture_mode) {
     return orderItem.product.capture_mode;
   }
 
-  return getCaptureModeForProduct(orderItem.description);
+  const productName = orderItem.product?.name ?? orderItem.description;
+  return getCaptureModeForProduct(productName);
 }
 
 export function isSupportedSizeProduct(productName: string) {
@@ -75,7 +99,7 @@ export function isSizeRowComplete(row: SizeTableRowRecord) {
     return false;
   }
 
-  if (row.capture_mode === "simple") {
+  if (getCaptureModeForSizeRow(row) === "simple") {
     return true;
   }
 

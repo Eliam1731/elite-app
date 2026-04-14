@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CreditCard, ReceiptText, Ruler, Wallet } from "lucide-react";
+import { CreditCard, ReceiptText, Ruler } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -16,7 +16,6 @@ const items: OrderDetailNavItem[] = [
   { href: "#resumen", label: "Resumen", icon: ReceiptText },
   { href: "#tallas", label: "Tallas", icon: Ruler },
   { href: "#pagos", label: "Pagos", icon: CreditCard },
-  { href: "#costos", label: "Costos", icon: Wallet },
 ];
 
 function getCurrentHash() {

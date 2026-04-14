@@ -12,7 +12,6 @@ type OrderPaymentsSectionProps = {
   pendingAmount: number;
   payments: PaymentRecord[];
   currencyCode: string;
-  today: string;
   message?: string;
 };
 
@@ -41,12 +40,15 @@ function PaymentMessage({ message }: { message?: string }) {
     );
   }
 
-  if (
-    message === "payment-invalid" ||
-    message === "payment-date-invalid" ||
-    message === "payment-error" ||
-    message === "config"
-  ) {
+  if (message === "payment-missing-client") {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+        El pedido no tiene cliente asociado, asi que no se puede guardar el pago.
+      </div>
+    );
+  }
+
+  if (message === "payment-invalid" || message === "payment-error" || message === "config") {
     return (
       <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
         No se pudo registrar el pago. Revisa los datos e intenta de nuevo.
@@ -65,7 +67,6 @@ export function OrderPaymentsSection({
   pendingAmount,
   payments,
   currencyCode,
-  today,
   message,
 }: OrderPaymentsSectionProps) {
   const action = createPaymentAction.bind(null, orderId);
@@ -146,25 +147,16 @@ export function OrderPaymentsSection({
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
-                Fecha
-              </label>
-              <input
-                type="date"
-                name="payment_date"
-                defaultValue={today}
-                max={today}
-                className="h-12 w-full rounded-2xl border border-[var(--color-line)] bg-[var(--color-input)] px-4 text-sm text-[var(--color-ink)] outline-none transition focus:border-[var(--color-brand)]"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
                 Metodo
               </label>
-              <input
+              <select
                 name="payment_method"
-                placeholder="Transferencia, efectivo, tarjeta..."
+                defaultValue="efectivo"
                 className="h-12 w-full rounded-2xl border border-[var(--color-line)] bg-[var(--color-input)] px-4 text-sm text-[var(--color-ink)] outline-none transition focus:border-[var(--color-brand)]"
-              />
+              >
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold text-[var(--color-ink)]">
@@ -209,7 +201,7 @@ export function OrderPaymentsSection({
                       </p>
                       <p className="mt-1 text-xs text-[var(--color-muted)]">
                         {formatDate(payment.payment_date)}
-                        {payment.payment_method ? ` · ${payment.payment_method}` : ""}
+                        {payment.payment_method ? ` - ${payment.payment_method}` : ""}
                       </p>
                     </div>
                   </div>
