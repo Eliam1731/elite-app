@@ -4,23 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { COST_TYPE_OPTIONS } from "@/features/costs/constants";
 import {
   getTodayForDateInput,
   isValidDateInputValue,
 } from "@/features/orders/due-date";
 import { roundCurrency } from "@/features/quotes/calculations";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { OrderCostType } from "@/types/database";
-
-const COST_TYPE_OPTIONS = [
-  "materiales",
-  "mano_de_obra",
-  "impresion",
-  "bordado",
-  "envio",
-  "extras",
-  "otro",
-] as const satisfies readonly OrderCostType[];
 
 const createCostSchema = z.object({
   cost_type: z.enum(COST_TYPE_OPTIONS),
@@ -128,5 +118,3 @@ export async function createOrderCostAction(orderId: string, formData: FormData)
   revalidatePath(`/pedidos/${orderId}`);
   redirect(getCostHref(orderId, "cost-created"));
 }
-
-export { COST_TYPE_OPTIONS };

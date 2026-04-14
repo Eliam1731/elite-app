@@ -1,9 +1,7 @@
 import { Factory, PackageSearch, Wallet } from "lucide-react";
 
-import {
-  COST_TYPE_OPTIONS,
-  createOrderCostAction,
-} from "@/features/costs/actions";
+import { createOrderCostAction } from "@/features/costs/actions";
+import { COST_TYPE_OPTIONS } from "@/features/costs/constants";
 import { formatCurrency, formatDate } from "@/features/quotes/calculations";
 import type { OrderCostRecord } from "@/types/database";
 
