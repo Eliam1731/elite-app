@@ -47,14 +47,31 @@ export type DashboardSummary = {
   monthLabel: string;
 };
 
-export type DashboardSalesItem = {
-  orderId: string;
-  folio: string;
-  clientName: string;
-  amount: number;
-  status: CanonicalOrderStatus;
-  createdAt: string | null;
-};
+export type DashboardSalesItem =
+  | {
+      id: string;
+      kind: "income";
+      amount: number;
+      signedAmount: number;
+      eventDate: string;
+      orderId: string;
+      folio: string;
+      clientName: string;
+      paymentType: "down_payment" | "partial" | "final";
+      paymentTypeLabel: string;
+      notes: string | null;
+    }
+  | {
+      id: string;
+      kind: "expense";
+      amount: number;
+      signedAmount: number;
+      eventDate: string;
+      orderId: string | null;
+      folio: string | null;
+      clientName: string | null;
+      notes: string | null;
+    };
 
 export type DashboardIncomeItem = {
   paymentId: string;
@@ -166,6 +183,23 @@ function getPaymentTypeLabel(paymentType: DashboardIncomeItem["paymentType"]) {
   }
 }
 
+function getPendingStatusPriority(status: CanonicalOrderStatus) {
+  switch (status) {
+    case "en_produccion":
+      return 0;
+    case "aprobado":
+      return 1;
+    case "entregado":
+      return 2;
+    case "listo":
+      return 3;
+    case "borrador":
+      return 4;
+    default:
+      return 5;
+  }
+}
+
 async function getDashboardBaseData() {
   const supabase = createServerSupabaseClient();
 
@@ -177,7 +211,6 @@ async function getDashboardBaseData() {
 
   const [
     ordersResult,
-    monthlyOrdersResult,
     paymentsResult,
     monthlyPaymentsResult,
     monthlyShippingExpensesResult,
@@ -185,12 +218,6 @@ async function getDashboardBaseData() {
     supabase
       .from("orders")
       .select("id, folio, total_amount, status, created_at, clients(name)")
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("orders")
-      .select("id, folio, total_amount, status, created_at, clients(name)")
-      .gte("created_at", `${monthStart}T00:00:00Z`)
-      .lt("created_at", `${nextMonthStart}T00:00:00Z`)
       .order("created_at", { ascending: false }),
     supabase
       .from("payments")
@@ -217,12 +244,6 @@ async function getDashboardBaseData() {
     throw new Error(ordersResult.error.message || "No se pudieron consultar los pedidos.");
   }
 
-  if (monthlyOrdersResult.error) {
-    throw new Error(
-      monthlyOrdersResult.error.message || "No se pudieron consultar las ventas del mes.",
-    );
-  }
-
   if (paymentsResult.error) {
     throw new Error(paymentsResult.error.message || "No se pudieron consultar los pagos.");
   }
@@ -243,7 +264,6 @@ async function getDashboardBaseData() {
   return {
     monthLabel,
     allOrders: (ordersResult.data ?? []) as DashboardOrderBase[],
-    monthlyOrders: (monthlyOrdersResult.data ?? []) as DashboardOrderBase[],
     allPayments: (paymentsResult.data ?? []) as DashboardPaymentBase[],
     monthlyPayments: (monthlyPaymentsResult.data ?? []) as DashboardPaymentBase[],
     monthlyShippingExpenses: (monthlyShippingExpensesResult.data ??
@@ -256,23 +276,58 @@ function buildOrderMap(orders: DashboardOrderBase[]) {
 }
 
 function buildMonthlySalesDetail(
-  monthlyOrders: DashboardOrderBase[],
+  monthlyPayments: DashboardPaymentBase[],
+  monthlyShippingExpenses: DashboardShippingExpenseBase[],
+  orderMap: Map<string, DashboardOrderBase>,
   monthLabel: string,
 ): MonthlySalesDetail {
-  const items = monthlyOrders
-    .filter((order) => normalizeOrderStatus(order.status) !== "cancelado")
-    .map((order) => ({
-      orderId: order.id,
-      folio: order.folio,
+  const incomeItems: DashboardSalesItem[] = monthlyPayments.map((payment) => {
+    const order = orderMap.get(payment.order_id);
+    const paymentType = (payment.payment_type ?? "partial") as DashboardIncomeItem["paymentType"];
+    const amount = Number(payment.amount ?? 0);
+
+    return {
+      id: payment.id,
+      kind: "income",
+      amount,
+      signedAmount: amount,
+      eventDate: payment.payment_date,
+      orderId: payment.order_id,
+      folio: order?.folio ?? "Pedido sin folio",
       clientName: getOrderClientName(order),
-      amount: Number(order.total_amount ?? 0),
-      status: normalizeOrderStatus(order.status),
-      createdAt: order.created_at ?? null,
-    }))
-    .sort((a, b) => b.amount - a.amount);
+      paymentType,
+      paymentTypeLabel: getPaymentTypeLabel(paymentType),
+      notes: payment.notes,
+    };
+  });
+
+  const expenseItems: DashboardSalesItem[] = monthlyShippingExpenses.map((expense) => {
+    const order = expense.order_id ? orderMap.get(expense.order_id) : null;
+    const amount = Number(expense.amount ?? 0);
+
+    return {
+      id: expense.id,
+      kind: "expense",
+      amount,
+      signedAmount: roundCurrency(amount * -1),
+      eventDate: expense.expense_date,
+      orderId: expense.order_id,
+      folio: order?.folio ?? null,
+      clientName: order ? getOrderClientName(order) : null,
+      notes: expense.notes ?? null,
+    };
+  });
+
+  const items = [...incomeItems, ...expenseItems].sort((a, b) => {
+    if (a.eventDate === b.eventDate) {
+      return b.amount - a.amount;
+    }
+
+    return a.eventDate < b.eventDate ? 1 : -1;
+  });
 
   return {
-    total: sumByAmount(items, (item) => item.amount),
+    total: roundCurrency(sumByAmount(items, (item) => item.signedAmount)),
     monthLabel,
     items,
   };
@@ -350,7 +405,16 @@ function buildPendingCollectionDetail(
       };
     })
     .filter((item) => item.status !== "cancelado" && item.pendingAmount > 0)
-    .sort((a, b) => b.pendingAmount - a.pendingAmount);
+    .sort((a, b) => {
+      const priorityDiff =
+        getPendingStatusPriority(a.status) - getPendingStatusPriority(b.status);
+
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+
+      return b.pendingAmount - a.pendingAmount;
+    });
 
   return {
     total: sumByAmount(items, (item) => item.pendingAmount),
@@ -397,10 +461,16 @@ export const getDashboardSummary = cache(async (): Promise<DashboardSummary> => 
     };
   }
 
-  const salesDetail = buildMonthlySalesDetail(baseData.monthlyOrders, baseData.monthLabel);
+  const orderMap = buildOrderMap(baseData.allOrders);
+  const salesDetail = buildMonthlySalesDetail(
+    baseData.monthlyPayments,
+    baseData.monthlyShippingExpenses,
+    orderMap,
+    baseData.monthLabel,
+  );
   const incomeDetail = buildMonthlyIncomeDetail(
     baseData.monthlyPayments,
-    buildOrderMap(baseData.allOrders),
+    orderMap,
     baseData.monthLabel,
   );
   const pendingDetail = buildPendingCollectionDetail(
@@ -409,7 +479,7 @@ export const getDashboardSummary = cache(async (): Promise<DashboardSummary> => 
   );
   const shippingDetail = buildMonthlyShippingExpensesDetail(
     baseData.monthlyShippingExpenses,
-    buildOrderMap(baseData.allOrders),
+    orderMap,
     baseData.monthLabel,
   );
 
@@ -433,7 +503,12 @@ export const getMonthlySalesDetail = cache(async (): Promise<MonthlySalesDetail>
     };
   }
 
-  return buildMonthlySalesDetail(baseData.monthlyOrders, baseData.monthLabel);
+  return buildMonthlySalesDetail(
+    baseData.monthlyPayments,
+    baseData.monthlyShippingExpenses,
+    buildOrderMap(baseData.allOrders),
+    baseData.monthLabel,
+  );
 });
 
 export const getMonthlyIncomeDetail = cache(async (): Promise<MonthlyIncomeDetail> => {

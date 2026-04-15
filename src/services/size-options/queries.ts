@@ -15,6 +15,7 @@ function mapDefaultSizeOptions(): SizeOptionRecord[] {
   return DEFAULT_SIZE_OPTIONS.map((option, index) => ({
     id: `default-${index + 1}`,
     label: option.label,
+    sort_order: index + 1,
     is_active: true,
     created_at: now,
     updated_at: now,
@@ -30,10 +31,6 @@ function isMissingTableError(error: unknown) {
   return candidate.code === "PGRST205";
 }
 
-function sortSizeOptions(options: SizeOptionRecord[]) {
-  return [...options].sort((a, b) => a.label.localeCompare(b.label, "es-MX"));
-}
-
 export const getSizeOptionsResult = cache(async (): Promise<SizeOptionsResult> => {
   const supabase = createServerSupabaseClient();
 
@@ -47,7 +44,7 @@ export const getSizeOptionsResult = cache(async (): Promise<SizeOptionsResult> =
   const { data, error } = await supabase
     .from("size_options")
     .select("*")
-    .order("label", { ascending: true });
+    .order("sort_order", { ascending: true });
 
   if (error) {
     if (isMissingTableError(error)) {
@@ -61,7 +58,7 @@ export const getSizeOptionsResult = cache(async (): Promise<SizeOptionsResult> =
   }
 
   return {
-    options: sortSizeOptions((data ?? []) as SizeOptionRecord[]),
+    options: (data ?? []) as SizeOptionRecord[],
     available: true,
   };
 });

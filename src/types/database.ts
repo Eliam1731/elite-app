@@ -170,6 +170,7 @@ export type ShippingExpenseRecord = {
 export type SizeOptionRecord = {
   id: string;
   label: string;
+  sort_order?: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

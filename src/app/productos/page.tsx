@@ -3,7 +3,7 @@ import { Package2 } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageIntro } from "@/components/shared/page-intro";
 import { SupabaseBanner } from "@/features/clients/components/supabase-banner";
-import { ProductCard } from "@/features/products/components/product-card";
+import { ProductsTable } from "@/features/products/components/products-table";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 import { getBusinessSettings } from "@/services/business-settings/queries";
 import { getProducts } from "@/services/products/queries";
@@ -44,15 +44,7 @@ export default async function ProductsPage() {
       />
 
       {products.length > 0 ? (
-        <section className="space-y-3">
-          {products.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              currencyCode={currencyCode}
-            />
-          ))}
-        </section>
+        <ProductsTable products={products} currencyCode={currencyCode} />
       ) : (
         <EmptyState
           title="Todavia no hay productos"

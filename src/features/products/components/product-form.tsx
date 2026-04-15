@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { CircleHelp, LoaderCircle } from "lucide-react";
 import { useFormStatus } from "react-dom";
 
 import type {
@@ -97,6 +97,22 @@ export function ProductForm({
             <option value="full">Completa</option>
             <option value="simple">Simple</option>
           </select>
+          <div className="mt-3 rounded-2xl bg-[var(--color-panel)] px-4 py-3 text-xs leading-5 text-[var(--color-muted)]">
+            <div className="flex items-start gap-2">
+              <CircleHelp className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-soft-muted)]" />
+              <div className="space-y-2">
+                <p>
+                  <span className="font-semibold text-[var(--color-ink)]">Completa:</span>{" "}
+                  incluye nombre, talla, numero, silueta, cuello, mangas, punos y
+                  especificaciones.
+                </p>
+                <p>
+                  <span className="font-semibold text-[var(--color-ink)]">Simple:</span>{" "}
+                  incluye talla, numero y especificaciones.
+                </p>
+              </div>
+            </div>
+          </div>
           <FieldError message={formState.fieldErrors?.capture_mode} />
         </div>
 

@@ -48,6 +48,29 @@ function getSizeOptionFormErrorMessage(error: {
   return error?.message || "No se pudo guardar la talla.";
 }
 
+async function insertSizeOption(label: string) {
+  const supabase = createServerSupabaseClient();
+
+  if (!supabase) {
+    return {
+      data: null,
+      error: {
+        message:
+          "Faltan NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en tu entorno.",
+      },
+    };
+  }
+
+  return supabase
+    .from("size_options")
+    .insert({
+      label,
+      is_active: true,
+    })
+    .select("id")
+    .single();
+}
+
 export async function createSizeOptionAction(
   _: SizeOptionFormState | void,
   formData: FormData,
@@ -61,24 +84,7 @@ export async function createSizeOptionAction(
     } satisfies SizeOptionFormState;
   }
 
-  const supabase = createServerSupabaseClient();
-
-  if (!supabase) {
-    return {
-      ...initialSizeOptionFormState,
-      message:
-        "Faltan NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en tu entorno.",
-    };
-  }
-
-  const { data, error } = await supabase
-    .from("size_options")
-    .insert({
-      ...parsed.data,
-      is_active: true,
-    })
-    .select("id")
-    .single();
+  const { data, error } = await insertSizeOption(parsed.data.label);
 
   if (error || !data) {
     return {
@@ -89,6 +95,34 @@ export async function createSizeOptionAction(
   revalidatePath("/tallas");
   revalidatePath("/dashboard");
   redirect(`/tallas/${data.id}/editar`);
+}
+
+function getSizesQuickCreateHref(message: string) {
+  return `/tallas?message=${message}`;
+}
+
+export async function createSizeOptionQuickAction(formData: FormData) {
+  const parsed = mapSizeOptionPayload(formData);
+
+  if (!parsed.success) {
+    redirect(getSizesQuickCreateHref("size-invalid"));
+  }
+
+  const { error } = await insertSizeOption(parsed.data.label);
+
+  if (error) {
+    const duplicate =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "23505";
+
+    redirect(getSizesQuickCreateHref(duplicate ? "size-duplicate" : "size-error"));
+  }
+
+  revalidatePath("/tallas");
+  revalidatePath("/dashboard");
+  redirect(getSizesQuickCreateHref("size-created"));
 }
 
 export async function updateSizeOptionAction(

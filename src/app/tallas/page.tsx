@@ -1,12 +1,20 @@
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageIntro } from "@/components/shared/page-intro";
 import { SupabaseBanner } from "@/features/clients/components/supabase-banner";
-import { SizeOptionCard } from "@/features/size-options/components/size-option-card";
+import { SizeOptionsTable } from "@/features/size-options/components/size-options-table";
 import { isSupabaseConfigured } from "@/lib/supabase/server";
 import { getSizeOptionsResult } from "@/services/size-options/queries";
 
-export default async function SizesPage() {
+type SizesPageProps = {
+  searchParams?: Promise<{
+    message?: string;
+  }>;
+};
+
+export default async function SizesPage({ searchParams }: SizesPageProps) {
   const configured = isSupabaseConfigured();
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const message = resolvedSearchParams?.message ?? "";
 
   if (!configured) {
     return (
@@ -31,8 +39,6 @@ export default async function SizesPage() {
         title="Catalogo global"
         description="Administra las tallas validas del sistema. La captura real de cada cliente se sigue haciendo dentro del pedido."
         backHref="/dashboard"
-        actionHref={available ? "/tallas/nueva" : undefined}
-        actionLabel={available ? "Nueva" : undefined}
       />
 
       {!available ? (
@@ -52,18 +58,15 @@ export default async function SizesPage() {
       </section>
 
       {available && options.length > 0 ? (
-        <section className="space-y-3">
-          {options.map((option) => (
-            <SizeOptionCard key={option.id} option={option} />
-          ))}
-        </section>
+        <SizeOptionsTable options={options} message={message} />
       ) : available ? (
-        <EmptyState
-          title="Todavia no hay tallas"
-          description="Cuando agregues tallas validas aqui, el selector del pedido las usara automaticamente."
-          actionHref="/tallas/nueva"
-          actionLabel="Crear talla"
-        />
+        <div className="space-y-4">
+          <SizeOptionsTable options={options} message={message} />
+          <EmptyState
+            title="Todavia no hay tallas"
+            description="Cuando agregues tallas validas aqui, el selector del pedido las usara automaticamente."
+          />
+        </div>
       ) : (
         <section className="rounded-[1.6rem] border border-dashed border-[var(--color-line-strong)] bg-[var(--color-panel)] p-4">
           <p className="text-sm leading-6 text-[var(--color-muted)]">
