@@ -22,7 +22,7 @@ function getString(formData: FormData, key: string) {
 }
 
 function getDashboardHref(message: string) {
-  return `/dashboard?message=${message}`;
+  return `/dashboard/envios?message=${message}`;
 }
 
 export async function createShippingExpenseAction(formData: FormData) {
@@ -77,5 +77,6 @@ export async function createShippingExpenseAction(formData: FormData) {
   }
 
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/envios");
   redirect(getDashboardHref("shipping-expense-created"));
 }

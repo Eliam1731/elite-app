@@ -1,18 +1,87 @@
 import { cache } from "react";
 
 import { roundCurrency, sumMoney } from "@/features/quotes/calculations";
-import { normalizeOrderStatus } from "@/features/orders/status";
+import { getOrderStatusLabel, normalizeOrderStatus } from "@/features/orders/status";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import type { CanonicalOrderStatus, OrderStatusRecord } from "@/types/database";
 
-type DashboardOrderAmountItem = {
+type DashboardOrderBase = {
+  id: string;
+  folio: string;
+  total_amount: number | null;
+  status: OrderStatusRecord;
+  created_at?: string | null;
+  clients?:
+    | {
+        name?: string | null;
+      }
+    | Array<{
+        name?: string | null;
+      }>
+    | null;
+};
+
+type DashboardPaymentBase = {
+  id: string;
+  order_id: string;
+  amount: number | null;
+  payment_date: string;
+  payment_type: "down_payment" | "partial" | "final" | null;
+  payment_method: string | null;
+  notes: string | null;
+};
+
+type DashboardShippingExpenseBase = {
+  id: string;
+  order_id: string | null;
+  amount: number | null;
+  expense_date: string;
+  notes: string | null;
+};
+
+export type DashboardSummary = {
+  salesThisMonth: number;
+  collectedThisMonth: number;
+  pendingCollection: number;
+  shippingExpensesThisMonth: number;
+  monthLabel: string;
+};
+
+export type DashboardSalesItem = {
   orderId: string;
   folio: string;
   clientName: string;
   amount: number;
-  status: string;
+  status: CanonicalOrderStatus;
+  createdAt: string | null;
 };
 
-type DashboardShippingExpenseItem = {
+export type DashboardIncomeItem = {
+  paymentId: string;
+  orderId: string;
+  folio: string;
+  clientName: string;
+  amount: number;
+  paymentDate: string;
+  paymentType: "down_payment" | "partial" | "final";
+  paymentTypeLabel: string;
+  paymentMethod: string | null;
+  notes: string | null;
+  orderStatus: CanonicalOrderStatus;
+};
+
+export type DashboardPendingItem = {
+  orderId: string;
+  folio: string;
+  clientName: string;
+  totalAmount: number;
+  paidAmount: number;
+  pendingAmount: number;
+  status: CanonicalOrderStatus;
+  statusLabel: string;
+};
+
+export type DashboardShippingExpenseItem = {
   id: string;
   orderId: string | null;
   folio: string | null;
@@ -22,15 +91,27 @@ type DashboardShippingExpenseItem = {
   notes: string | null;
 };
 
-type MonthlyDashboardSummary = {
-  salesThisMonth: number;
-  collectedThisMonth: number;
-  pendingCollection: number;
-  incomeOrders: DashboardOrderAmountItem[];
-  pendingOrders: DashboardOrderAmountItem[];
-  shippingExpensesThisMonth: number;
-  shippingExpenses: DashboardShippingExpenseItem[];
+export type MonthlySalesDetail = {
+  total: number;
   monthLabel: string;
+  items: DashboardSalesItem[];
+};
+
+export type MonthlyIncomeDetail = {
+  total: number;
+  monthLabel: string;
+  items: DashboardIncomeItem[];
+};
+
+export type PendingCollectionDetail = {
+  total: number;
+  items: DashboardPendingItem[];
+};
+
+export type MonthlyShippingExpensesDetail = {
+  total: number;
+  monthLabel: string;
+  items: DashboardShippingExpenseItem[];
 };
 
 const BUSINESS_TIME_ZONE = "America/Mexico_City";
@@ -67,196 +148,343 @@ function sumByAmount<T>(items: T[], getAmount: (item: T) => number) {
   return sumMoney(items.map((item) => getAmount(item)));
 }
 
-function getOrderClientName(
-  order:
-    | {
-        clients?:
-          | { name?: string | null }
-          | Array<{ name?: string | null }>
-          | null;
-      }
-    | null
-    | undefined,
-) {
-  const client = Array.isArray(order?.clients)
-    ? order.clients[0]
-    : order?.clients;
-
+function getOrderClientName(order: DashboardOrderBase | null | undefined) {
+  const client = Array.isArray(order?.clients) ? order.clients[0] : order?.clients;
   return client?.name?.trim() || "Cliente sin nombre";
 }
 
-export const getMonthlyDashboardSummary = cache(
-  async (): Promise<MonthlyDashboardSummary> => {
-    const supabase = createServerSupabaseClient();
+function getPaymentTypeLabel(paymentType: DashboardIncomeItem["paymentType"]) {
+  switch (paymentType) {
+    case "down_payment":
+      return "Anticipo";
+    case "partial":
+      return "Pago parcial";
+    case "final":
+      return "Liquidado";
+    default:
+      return "Pago";
+  }
+}
 
-    if (!supabase) {
-      return {
-        salesThisMonth: 0,
-        collectedThisMonth: 0,
-        pendingCollection: 0,
-        incomeOrders: [],
-        pendingOrders: [],
-        shippingExpensesThisMonth: 0,
-        shippingExpenses: [],
-        monthLabel: getMonthBounds().monthLabel,
-      };
-    }
+async function getDashboardBaseData() {
+  const supabase = createServerSupabaseClient();
 
-    const { monthStart, nextMonthStart, monthLabel } = getMonthBounds();
+  if (!supabase) {
+    return null;
+  }
 
-    const [ordersThisMonthResult, paymentsThisMonthResult, allOrdersResult, allPaymentsResult] =
-      await Promise.all([
-      supabase
-        .from("orders")
-        .select("id, folio, total_amount, status, created_at, clients(name)")
-        .gte("created_at", `${monthStart}T00:00:00Z`)
-        .lt("created_at", `${nextMonthStart}T00:00:00Z`),
-      supabase
-        .from("payments")
-        .select("order_id, amount, payment_date")
-        .gte("payment_date", monthStart)
-        .lt("payment_date", nextMonthStart),
-      supabase
-        .from("orders")
-        .select("id, folio, total_amount, status, clients(name)")
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("payments")
-        .select("order_id, amount"),
-    ]);
+  const { monthStart, nextMonthStart, monthLabel } = getMonthBounds();
 
-    const [shippingExpensesResult] = await Promise.all([
-      supabase
-        .from("shipping_expenses")
-        .select("id, order_id, amount, expense_date, notes")
-        .gte("expense_date", monthStart)
-        .lt("expense_date", nextMonthStart)
-        .order("expense_date", { ascending: false })
-        .order("created_at", { ascending: false }),
-    ]);
+  const [
+    ordersResult,
+    monthlyOrdersResult,
+    paymentsResult,
+    monthlyPaymentsResult,
+    monthlyShippingExpensesResult,
+  ] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("id, folio, total_amount, status, created_at, clients(name)")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("orders")
+      .select("id, folio, total_amount, status, created_at, clients(name)")
+      .gte("created_at", `${monthStart}T00:00:00Z`)
+      .lt("created_at", `${nextMonthStart}T00:00:00Z`)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("payments")
+      .select("id, order_id, amount, payment_date, payment_type, payment_method, notes")
+      .order("payment_date", { ascending: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("payments")
+      .select("id, order_id, amount, payment_date, payment_type, payment_method, notes")
+      .gte("payment_date", monthStart)
+      .lt("payment_date", nextMonthStart)
+      .order("payment_date", { ascending: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("shipping_expenses")
+      .select("id, order_id, amount, expense_date, notes")
+      .gte("expense_date", monthStart)
+      .lt("expense_date", nextMonthStart)
+      .order("expense_date", { ascending: false })
+      .order("created_at", { ascending: false }),
+  ]);
 
-    if (ordersThisMonthResult.error) {
-      throw new Error(
-        ordersThisMonthResult.error?.message || "No se pudieron consultar los pedidos.",
-      );
-    }
+  if (ordersResult.error) {
+    throw new Error(ordersResult.error.message || "No se pudieron consultar los pedidos.");
+  }
 
-    if (paymentsThisMonthResult.error) {
-      throw new Error(
-        paymentsThisMonthResult.error?.message || "No se pudieron consultar los pagos.",
-      );
-    }
-
-    if (allOrdersResult.error) {
-      throw new Error(
-        allOrdersResult.error?.message || "No se pudieron consultar los pedidos.",
-      );
-    }
-
-    if (allPaymentsResult.error) {
-      throw new Error(
-        allPaymentsResult.error?.message || "No se pudieron consultar los pagos.",
-      );
-    }
-
-    if (shippingExpensesResult.error) {
-      throw new Error(
-        shippingExpensesResult.error?.message ||
-          "No se pudieron consultar los gastos de envio.",
-      );
-    }
-
-    const salesThisMonth = sumByAmount(
-      ordersThisMonthResult.data ?? [],
-      (order) => Number(order.total_amount ?? 0),
+  if (monthlyOrdersResult.error) {
+    throw new Error(
+      monthlyOrdersResult.error.message || "No se pudieron consultar las ventas del mes.",
     );
-    const collectedThisMonth = sumByAmount(
-      paymentsThisMonthResult.data ?? [],
-      (payment) => Number(payment.amount ?? 0),
+  }
+
+  if (paymentsResult.error) {
+    throw new Error(paymentsResult.error.message || "No se pudieron consultar los pagos.");
+  }
+
+  if (monthlyPaymentsResult.error) {
+    throw new Error(
+      monthlyPaymentsResult.error.message || "No se pudieron consultar los ingresos del mes.",
     );
-    const allOrders = allOrdersResult.data ?? [];
-    const allPayments = allPaymentsResult.data ?? [];
-    const paymentsThisMonth = paymentsThisMonthResult.data ?? [];
-    const shippingExpensesRaw = shippingExpensesResult.data ?? [];
-    const orderMap = new Map(allOrders.map((order) => [order.id, order]));
+  }
 
-    const incomeByOrderId = new Map<string, number>();
-    paymentsThisMonth.forEach((payment) => {
-      const current = incomeByOrderId.get(payment.order_id) ?? 0;
-      incomeByOrderId.set(
-        payment.order_id,
-        roundCurrency(current + Number(payment.amount ?? 0)),
-      );
-    });
-
-    const incomeOrders = Array.from(incomeByOrderId.entries())
-      .map(([orderId, amount]) => {
-        const order = orderMap.get(orderId);
-
-        return {
-          orderId,
-          folio: order?.folio ?? "Pedido sin folio",
-          clientName: getOrderClientName(order),
-          amount,
-          status: normalizeOrderStatus(order?.status ?? "borrador"),
-        };
-      })
-      .sort((a, b) => b.amount - a.amount);
-
-    const paidByOrderId = new Map<string, number>();
-    allPayments.forEach((payment) => {
-      const current = paidByOrderId.get(payment.order_id) ?? 0;
-      paidByOrderId.set(
-        payment.order_id,
-        roundCurrency(current + Number(payment.amount ?? 0)),
-      );
-    });
-
-    const pendingOrders = allOrders
-      .map((order) => {
-        const totalAmount = Number(order.total_amount ?? 0);
-        const paidAmount = paidByOrderId.get(order.id) ?? 0;
-        const pendingAmount = roundCurrency(Math.max(totalAmount - paidAmount, 0));
-
-        return {
-          orderId: order.id,
-          folio: order.folio,
-          clientName: getOrderClientName(order),
-          amount: pendingAmount,
-          status: normalizeOrderStatus(order.status),
-        };
-      })
-      .filter((order) => order.amount > 0 && order.status !== "cancelado")
-      .sort((a, b) => b.amount - a.amount);
-
-    const pendingCollection = sumByAmount(pendingOrders, (order) => order.amount);
-    const shippingExpensesThisMonth = sumByAmount(
-      shippingExpensesRaw,
-      (expense) => Number(expense.amount ?? 0),
+  if (monthlyShippingExpensesResult.error) {
+    throw new Error(
+      monthlyShippingExpensesResult.error.message ||
+        "No se pudieron consultar los gastos de envio.",
     );
-    const shippingExpenses = shippingExpensesRaw.map((expense) => {
-      const order = expense.order_id ? orderMap.get(expense.order_id) : null;
+  }
+
+  return {
+    monthLabel,
+    allOrders: (ordersResult.data ?? []) as DashboardOrderBase[],
+    monthlyOrders: (monthlyOrdersResult.data ?? []) as DashboardOrderBase[],
+    allPayments: (paymentsResult.data ?? []) as DashboardPaymentBase[],
+    monthlyPayments: (monthlyPaymentsResult.data ?? []) as DashboardPaymentBase[],
+    monthlyShippingExpenses: (monthlyShippingExpensesResult.data ??
+      []) as DashboardShippingExpenseBase[],
+  };
+}
+
+function buildOrderMap(orders: DashboardOrderBase[]) {
+  return new Map(orders.map((order) => [order.id, order]));
+}
+
+function buildMonthlySalesDetail(
+  monthlyOrders: DashboardOrderBase[],
+  monthLabel: string,
+): MonthlySalesDetail {
+  const items = monthlyOrders
+    .filter((order) => normalizeOrderStatus(order.status) !== "cancelado")
+    .map((order) => ({
+      orderId: order.id,
+      folio: order.folio,
+      clientName: getOrderClientName(order),
+      amount: Number(order.total_amount ?? 0),
+      status: normalizeOrderStatus(order.status),
+      createdAt: order.created_at ?? null,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  return {
+    total: sumByAmount(items, (item) => item.amount),
+    monthLabel,
+    items,
+  };
+}
+
+function buildMonthlyIncomeDetail(
+  monthlyPayments: DashboardPaymentBase[],
+  orderMap: Map<string, DashboardOrderBase>,
+  monthLabel: string,
+): MonthlyIncomeDetail {
+  const items = monthlyPayments
+    .map((payment) => {
+      const order = orderMap.get(payment.order_id);
+      const paymentType = (payment.payment_type ?? "partial") as DashboardIncomeItem["paymentType"];
 
       return {
-        id: expense.id,
-        orderId: expense.order_id,
-        folio: order?.folio ?? null,
-        clientName: order ? getOrderClientName(order) : null,
-        amount: Number(expense.amount ?? 0),
-        expenseDate: expense.expense_date,
-        notes: expense.notes ?? null,
+        paymentId: payment.id,
+        orderId: payment.order_id,
+        folio: order?.folio ?? "Pedido sin folio",
+        clientName: getOrderClientName(order),
+        amount: Number(payment.amount ?? 0),
+        paymentDate: payment.payment_date,
+        paymentType,
+        paymentTypeLabel: getPaymentTypeLabel(paymentType),
+        paymentMethod: payment.payment_method,
+        notes: payment.notes,
+        orderStatus: normalizeOrderStatus(order?.status ?? "borrador"),
       };
+    })
+    .sort((a, b) => {
+      if (a.paymentDate === b.paymentDate) {
+        return b.amount - a.amount;
+      }
+
+      return a.paymentDate < b.paymentDate ? 1 : -1;
     });
+
+  return {
+    total: sumByAmount(items, (item) => item.amount),
+    monthLabel,
+    items,
+  };
+}
+
+function buildPendingCollectionDetail(
+  allOrders: DashboardOrderBase[],
+  allPayments: DashboardPaymentBase[],
+): PendingCollectionDetail {
+  const paidByOrderId = new Map<string, number>();
+
+  allPayments.forEach((payment) => {
+    const current = paidByOrderId.get(payment.order_id) ?? 0;
+    paidByOrderId.set(
+      payment.order_id,
+      roundCurrency(current + Number(payment.amount ?? 0)),
+    );
+  });
+
+  const items = allOrders
+    .map((order) => {
+      const totalAmount = Number(order.total_amount ?? 0);
+      const paidAmount = paidByOrderId.get(order.id) ?? 0;
+      const pendingAmount = roundCurrency(Math.max(totalAmount - paidAmount, 0));
+      const status = normalizeOrderStatus(order.status);
+
+      return {
+        orderId: order.id,
+        folio: order.folio,
+        clientName: getOrderClientName(order),
+        totalAmount,
+        paidAmount,
+        pendingAmount,
+        status,
+        statusLabel: getOrderStatusLabel(status),
+      };
+    })
+    .filter((item) => item.status !== "cancelado" && item.pendingAmount > 0)
+    .sort((a, b) => b.pendingAmount - a.pendingAmount);
+
+  return {
+    total: sumByAmount(items, (item) => item.pendingAmount),
+    items,
+  };
+}
+
+function buildMonthlyShippingExpensesDetail(
+  expenses: DashboardShippingExpenseBase[],
+  orderMap: Map<string, DashboardOrderBase>,
+  monthLabel: string,
+): MonthlyShippingExpensesDetail {
+  const items = expenses.map((expense) => {
+    const order = expense.order_id ? orderMap.get(expense.order_id) : null;
 
     return {
-      salesThisMonth,
-      collectedThisMonth,
-      pendingCollection,
-      incomeOrders,
-      pendingOrders,
-      shippingExpensesThisMonth,
-      shippingExpenses,
-      monthLabel,
+      id: expense.id,
+      orderId: expense.order_id,
+      folio: order?.folio ?? null,
+      clientName: order ? getOrderClientName(order) : null,
+      amount: Number(expense.amount ?? 0),
+      expenseDate: expense.expense_date,
+      notes: expense.notes ?? null,
     };
+  });
+
+  return {
+    total: sumByAmount(items, (item) => item.amount),
+    monthLabel,
+    items,
+  };
+}
+
+export const getDashboardSummary = cache(async (): Promise<DashboardSummary> => {
+  const baseData = await getDashboardBaseData();
+
+  if (!baseData) {
+    return {
+      salesThisMonth: 0,
+      collectedThisMonth: 0,
+      pendingCollection: 0,
+      shippingExpensesThisMonth: 0,
+      monthLabel: getMonthBounds().monthLabel,
+    };
+  }
+
+  const salesDetail = buildMonthlySalesDetail(baseData.monthlyOrders, baseData.monthLabel);
+  const incomeDetail = buildMonthlyIncomeDetail(
+    baseData.monthlyPayments,
+    buildOrderMap(baseData.allOrders),
+    baseData.monthLabel,
+  );
+  const pendingDetail = buildPendingCollectionDetail(
+    baseData.allOrders,
+    baseData.allPayments,
+  );
+  const shippingDetail = buildMonthlyShippingExpensesDetail(
+    baseData.monthlyShippingExpenses,
+    buildOrderMap(baseData.allOrders),
+    baseData.monthLabel,
+  );
+
+  return {
+    salesThisMonth: salesDetail.total,
+    collectedThisMonth: incomeDetail.total,
+    pendingCollection: pendingDetail.total,
+    shippingExpensesThisMonth: shippingDetail.total,
+    monthLabel: baseData.monthLabel,
+  };
+});
+
+export const getMonthlySalesDetail = cache(async (): Promise<MonthlySalesDetail> => {
+  const baseData = await getDashboardBaseData();
+
+  if (!baseData) {
+    return {
+      total: 0,
+      monthLabel: getMonthBounds().monthLabel,
+      items: [],
+    };
+  }
+
+  return buildMonthlySalesDetail(baseData.monthlyOrders, baseData.monthLabel);
+});
+
+export const getMonthlyIncomeDetail = cache(async (): Promise<MonthlyIncomeDetail> => {
+  const baseData = await getDashboardBaseData();
+
+  if (!baseData) {
+    return {
+      total: 0,
+      monthLabel: getMonthBounds().monthLabel,
+      items: [],
+    };
+  }
+
+  return buildMonthlyIncomeDetail(
+    baseData.monthlyPayments,
+    buildOrderMap(baseData.allOrders),
+    baseData.monthLabel,
+  );
+});
+
+export const getPendingCollectionDetail = cache(
+  async (): Promise<PendingCollectionDetail> => {
+    const baseData = await getDashboardBaseData();
+
+    if (!baseData) {
+      return {
+        total: 0,
+        items: [],
+      };
+    }
+
+    return buildPendingCollectionDetail(baseData.allOrders, baseData.allPayments);
+  },
+);
+
+export const getMonthlyShippingExpensesDetail = cache(
+  async (): Promise<MonthlyShippingExpensesDetail> => {
+    const baseData = await getDashboardBaseData();
+
+    if (!baseData) {
+      return {
+        total: 0,
+        monthLabel: getMonthBounds().monthLabel,
+        items: [],
+      };
+    }
+
+    return buildMonthlyShippingExpensesDetail(
+      baseData.monthlyShippingExpenses,
+      buildOrderMap(baseData.allOrders),
+      baseData.monthLabel,
+    );
   },
 );
