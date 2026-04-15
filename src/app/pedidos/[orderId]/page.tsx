@@ -7,9 +7,10 @@ import {
 } from "lucide-react";
 import { notFound } from "next/navigation";
 
+import { ConfirmSubmitButton } from "@/components/shared/confirm-submit-button";
 import { PageIntro } from "@/components/shared/page-intro";
 import { SupabaseBanner } from "@/features/clients/components/supabase-banner";
-import { updateOrderDueDateAction } from "@/features/orders/actions";
+import { deleteOrderAction, updateOrderDueDateAction } from "@/features/orders/actions";
 import { OrderDetailNav } from "@/features/orders/components/order-detail-nav";
 import { getTodayForDateInput } from "@/features/orders/due-date";
 import { OrderStatusActions } from "@/features/orders/components/order-status-actions";
@@ -17,6 +18,7 @@ import {
   getOrderStatusClasses,
   getOrderStatusLabel,
   isOrderOverdue,
+  normalizeOrderStatus,
 } from "@/features/orders/status";
 import { OrderPaymentsSection } from "@/features/payments/components/order-payments-section";
 import { OrderSizesSection } from "@/features/sizes/components/order-sizes-section";
@@ -91,9 +93,18 @@ export default async function OrderDetailPage({
   const totalPaid = getTotalPaid(payments);
   const pendingAmount = order.total_amount - totalPaid;
   const updateDueDate = updateOrderDueDateAction.bind(null, order.id);
+  const deleteAction = deleteOrderAction.bind(null, order.id);
   const today = getTodayForDateInput();
   const minDueDate = today;
   const overdue = isOrderOverdue(order, today);
+  const normalizedStatus = normalizeOrderStatus(order.status);
+  const hasCapturedSizes = (sizeTable?.size_table_rows?.length ?? 0) > 0;
+  const hasPayments = payments.length > 0;
+  const isBlockedByStatus =
+    normalizedStatus === "en_produccion" ||
+    normalizedStatus === "listo" ||
+    normalizedStatus === "entregado";
+  const canDeleteOrder = !isBlockedByStatus && !hasPayments && !hasCapturedSizes;
 
   return (
     <div className="space-y-6">
@@ -144,6 +155,26 @@ export default async function OrderDetailPage({
       {resolvedSearchParams?.message === "due-date-invalid" ? (
         <section className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
           La fecha de entrega no puede ser anterior a hoy.
+        </section>
+      ) : null}
+      {resolvedSearchParams?.message === "delete-blocked-status" ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          No se puede borrar un pedido que ya esta en produccion, listo o entregado.
+        </section>
+      ) : null}
+      {resolvedSearchParams?.message === "delete-blocked-payments" ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          No se puede borrar el pedido porque ya tiene pagos registrados.
+        </section>
+      ) : null}
+      {resolvedSearchParams?.message === "delete-blocked-sizes" ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          No se puede borrar el pedido porque ya tiene tallas capturadas.
+        </section>
+      ) : null}
+      {resolvedSearchParams?.message === "delete-error" ? (
+        <section className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+          No se pudo eliminar el pedido.
         </section>
       ) : null}
 
@@ -428,6 +459,34 @@ export default async function OrderDetailPage({
           </section>
 
           <OrderStatusActions order={order} />
+
+          <section className="rounded-[1.6rem] border border-[var(--color-line)] bg-[var(--color-elevated)] p-4 shadow-[var(--shadow-soft)]">
+            <h2 className="text-sm font-semibold text-[var(--color-ink)]">
+              Eliminar pedido
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-[var(--color-muted)]">
+              Solo puedes borrar pedidos fuera de produccion y sin pagos ni tallas capturadas.
+            </p>
+
+            {canDeleteOrder ? (
+              <form action={deleteAction} className="mt-4">
+                <ConfirmSubmitButton
+                  label="Borrar pedido"
+                  pendingLabel="Borrando..."
+                  confirmMessage="Esta accion eliminara el pedido y sus datos relacionados. Deseas continuar?"
+                  className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-800 disabled:opacity-70"
+                />
+              </form>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-dashed border-[var(--color-line-strong)] bg-[var(--color-panel)] px-4 py-3 text-sm text-[var(--color-muted)]">
+                {isBlockedByStatus
+                  ? "Este pedido ya esta comprometido operativamente por su status actual."
+                  : hasPayments
+                    ? "Este pedido ya tiene pagos registrados."
+                    : "Este pedido ya tiene tallas capturadas."}
+              </div>
+            )}
+          </section>
         </aside>
       </section>
     </div>

@@ -2,10 +2,12 @@ import Link from "next/link";
 import { Download, FileText, MessageCircle, ReceiptText, UserRound } from "lucide-react";
 import { notFound } from "next/navigation";
 
+import { ConfirmSubmitButton } from "@/components/shared/confirm-submit-button";
 import { PageIntro } from "@/components/shared/page-intro";
 import {
   approveQuoteAction,
   createOrderFromQuoteAction,
+  deleteQuoteAction,
   rejectQuoteAction,
   sendQuoteAction,
 } from "@/features/quotes/actions";
@@ -85,6 +87,7 @@ export default async function QuoteDetailPage({
   const approveAction = approveQuoteAction.bind(null, quote.id);
   const rejectAction = rejectQuoteAction.bind(null, quote.id);
   const createOrderAction = createOrderFromQuoteAction.bind(null, quote.id);
+  const deleteAction = deleteQuoteAction.bind(null, quote.id);
   const futurePdfFilename = buildDocumentFilename({
     clientName: quote.clients?.name || "cliente",
     date: quote.created_at,
@@ -92,6 +95,7 @@ export default async function QuoteDetailPage({
   });
   const suggestedDownPaymentAmount = getCommercialDownPaymentAmount(quote.total_amount);
   const whatsappHref = getQuoteWhatsAppLink(quote, settings.currency_code);
+  const canDeleteQuote = !existingOrderId;
 
   return (
     <div className="space-y-6">
@@ -161,6 +165,16 @@ export default async function QuoteDetailPage({
               Detalle: {resolvedSearchParams.detail}
             </p>
           ) : null}
+        </section>
+      ) : null}
+      {resolvedSearchParams?.message === "delete-blocked-order" ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          No se puede borrar la cotizacion porque ya fue convertida en pedido.
+        </section>
+      ) : null}
+      {resolvedSearchParams?.message === "delete-error" ? (
+        <section className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+          No se pudo eliminar la cotizacion.
         </section>
       ) : null}
 
@@ -264,6 +278,22 @@ export default async function QuoteDetailPage({
               Ver pedido creado
             </Link>
           ) : null}
+        </div>
+        <div className="mt-4 border-t border-[var(--color-line)] pt-4">
+          {canDeleteQuote ? (
+            <form action={deleteAction}>
+              <ConfirmSubmitButton
+                label="Borrar cotizacion"
+                pendingLabel="Borrando..."
+                confirmMessage="Esta accion eliminara la cotizacion y sus items relacionados. Deseas continuar?"
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-800 disabled:opacity-70"
+              />
+            </form>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-[var(--color-line-strong)] bg-[var(--color-panel)] px-4 py-3 text-sm text-[var(--color-muted)]">
+              Esta cotizacion ya esta ligada a un pedido y no se puede borrar.
+            </div>
+          )}
         </div>
       </section>
 

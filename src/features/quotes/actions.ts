@@ -89,6 +89,10 @@ function getQuoteActionHref(
   return `/cotizaciones/${quoteId}?${params.toString()}`;
 }
 
+function getQuotesListHref(message: string) {
+  return `/cotizaciones?message=${message}`;
+}
+
 function parseItemsJson(formData: FormData) {
   const raw = getString(formData, "items_json");
 
@@ -474,4 +478,77 @@ export async function createOrderFromQuoteAction(quoteId: string) {
   revalidatePath(`/cotizaciones/${quoteId}`);
   revalidatePath("/pedidos");
   redirect(`/pedidos/${order.id}?message=created`);
+}
+
+export async function deleteQuoteAction(quoteId: string) {
+  const supabase = createServerSupabaseClient();
+
+  if (!supabase) {
+    redirect(getQuoteActionHref(quoteId, "config"));
+  }
+
+  const [{ data: quote, error: quoteError }, { data: existingOrder, error: existingOrderError }] =
+    await Promise.all([
+      supabase
+        .from("quotes")
+        .select("id, status")
+        .eq("id", quoteId)
+        .maybeSingle(),
+      supabase
+        .from("orders")
+        .select("id")
+        .eq("quote_id", quoteId)
+        .maybeSingle(),
+    ]);
+
+  if (quoteError || !quote) {
+    console.error("Error loading quote for deletion", {
+      quoteId,
+      error: quoteError,
+    });
+    redirect(getQuoteActionHref(quoteId, "delete-error"));
+  }
+
+  if (existingOrderError) {
+    console.error("Error checking existing order for quote deletion", {
+      quoteId,
+      error: existingOrderError,
+    });
+    redirect(getQuoteActionHref(quoteId, "delete-error"));
+  }
+
+  if (existingOrder?.id) {
+    redirect(getQuoteActionHref(quoteId, "delete-blocked-order"));
+  }
+
+  const { error: itemsError } = await supabase
+    .from("quote_items")
+    .delete()
+    .eq("quote_id", quoteId);
+
+  if (itemsError) {
+    console.error("Error deleting quote items", {
+      quoteId,
+      error: itemsError,
+    });
+    redirect(getQuoteActionHref(quoteId, "delete-error"));
+  }
+
+  const { error: deleteQuoteError } = await supabase
+    .from("quotes")
+    .delete()
+    .eq("id", quoteId);
+
+  if (deleteQuoteError) {
+    console.error("Error deleting quote", {
+      quoteId,
+      error: deleteQuoteError,
+    });
+    redirect(getQuoteActionHref(quoteId, "delete-error"));
+  }
+
+  revalidatePath("/cotizaciones");
+  revalidatePath(`/cotizaciones/${quoteId}`);
+  revalidatePath("/dashboard");
+  redirect(getQuotesListHref("quote-deleted"));
 }

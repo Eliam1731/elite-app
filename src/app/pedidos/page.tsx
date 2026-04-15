@@ -20,7 +20,7 @@ import { getBusinessSettings } from "@/services/business-settings/queries";
 import { getOrders } from "@/services/orders/queries";
 
 type OrdersPageProps = {
-  searchParams?: Promise<{ status?: string }>;
+  searchParams?: Promise<{ status?: string; message?: string }>;
 };
 
 export default async function OrdersPage({ searchParams }: OrdersPageProps) {
@@ -56,6 +56,11 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
 
       {!configured ? <SupabaseBanner /> : null}
       {configured && !settings ? <SettingsWarning /> : null}
+      {resolvedSearchParams?.message === "order-deleted" ? (
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          El pedido se elimino correctamente.
+        </section>
+      ) : null}
 
       {configured && settings && activeOrders.length > 0 ? (
         <section className="space-y-4">

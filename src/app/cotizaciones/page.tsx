@@ -10,8 +10,13 @@ import { isSupabaseConfigured } from "@/lib/supabase/server";
 import { getBusinessSettings } from "@/services/business-settings/queries";
 import { getQuotes } from "@/services/quotes/queries";
 
-export default async function QuotesPage() {
+type QuotesPageProps = {
+  searchParams?: Promise<{ message?: string }>;
+};
+
+export default async function QuotesPage({ searchParams }: QuotesPageProps) {
   const configured = isSupabaseConfigured();
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const settings = configured ? await getBusinessSettings() : null;
   const quotes = configured ? await getQuotes() : [];
 
@@ -27,6 +32,11 @@ export default async function QuotesPage() {
 
       {!configured ? <SupabaseBanner /> : null}
       {configured && !settings ? <SettingsWarning /> : null}
+      {resolvedSearchParams?.message === "quote-deleted" ? (
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          La cotizacion se elimino correctamente.
+        </section>
+      ) : null}
 
       {configured && settings && quotes.length > 0 ? (
         <section className="space-y-4">
